@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ստեղն Typing Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600&family=Instrument+Sans:wght@400;500&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: a quiet single column — letters, the line to type, the keyboard. Everything else waits behind two text buttons. */
+:root {
+  --bg: #f7f8fa;
+  --ink: #1b2233;
+  --muted: #7b8396;
+  --faint: #c0c6d2;
+  --line: #e3e6ec;
+  --key: #ffffff;
+  --accent: #2f55c8;
+  --err: #cf3a52;
+  --ok: #2f9363;
+  --f-type: "Noto Sans Armenian", "Instrument Sans", system-ui, sans-serif;
+  --f-ui: "Instrument Sans", "Noto Sans Armenian", system-ui, sans-serif;
+  --f-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151d; --ink: #e2e5ec; --muted: #8189a0; --faint: #434a5c; --line: #252a37;
+    --key: #181c26; --accent: #8aa6ff; --err: #f0697f; --ok: #5ec493; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151d; --ink: #e2e5ec; --muted: #8189a0; --faint: #434a5c; --line: #252a37;
+  --key: #181c26; --accent: #8aa6ff; --err: #f0697f; --ok: #5ec493; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-ui); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.arm { font-family: var(--f-type); }
+.hint { font-size: 13px; color: var(--muted); }
+
+button {
+  font: inherit; color: var(--ink); background: none; border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 11px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.link { border: 0; padding: 4px 2px; color: var(--muted); }
+button.link:hover, button.link[aria-expanded="true"] { color: var(--ink); }
+button.danger { color: var(--err); }
+button.danger.solid { background: var(--err); color: var(--bg); border-color: var(--err); }
+
+/* Header */
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--f-type); font-weight: 600; font-size: 19px; letter-spacing: 0.01em; }
+.nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+select {
+  font: inherit; color: var(--ink); background: transparent; border: 0; padding: 4px 2px; cursor: pointer;
+}
+
+/* Panels (progress, settings) */
+.panel { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 18px; display: grid; gap: 18px 32px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.panel > .full { grid-column: 1 / -1; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.check { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.range-row { display: flex; align-items: center; gap: 12px; }
+.range-row input { flex: 1; accent-color: var(--accent); min-width: 0; }
+.range-row output { font-family: var(--f-num); font-size: 13px; min-width: 60px; text-align: right; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row-actions .spacer { flex: 1; }
+.data-confirm { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+#dataStatus.ok { color: var(--ok); }
+#dataStatus.bad { color: var(--err); }
+#exportText { width: 100%; font-family: var(--f-num); font-size: 12px; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 10px; resize: vertical; }
+.about { color: var(--muted); display: flex; flex-direction: column; gap: 8px; max-width: 70ch; }
+.about p { margin: 0; }
+.about b { color: var(--ink); font-weight: 500; }
+kbd { font-family: var(--f-num); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--ink); }
+
+/* Letters */
+.letters { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.ladder { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 540px; }
+.chip {
+  --c: 0; position: relative; width: 26px; height: 32px; padding: 0; border: 0; border-radius: 4px;
+  font-family: var(--f-type); font-size: 17px; color: var(--ink); background: none;
+}
+.chip::after {
+  content: ""; position: absolute; left: 5px; right: 5px; bottom: 2px; height: 2px; border-radius: 2px;
+  background: color-mix(in oklab, var(--err), var(--ok) calc(var(--c) * 100%));
+  transform-origin: left; transform: scaleX(max(var(--c), 0.1));
+}
+.chip.unseen::after { background: var(--faint); transform: scaleX(1); }
+.chip.locked { color: var(--faint); }
+.chip.locked::after { display: none; }
+.chip.focus { color: var(--accent); font-weight: 600; }
+.chip.sel { background: var(--line); }
+.keyinfo { font-size: 13px; color: var(--muted); min-height: 20px; text-align: center; }
+.keyinfo b { color: var(--ink); font-family: var(--f-type); font-weight: 500; }
+
+/* Stats line */
+.stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; font-family: var(--f-num); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 400; }
+.stats .up { color: var(--ok); }
+.stats .down { color: var(--err); }
+.stats .arm { color: var(--accent); }
+
+/* Typing line */
+.sheet { position: relative; cursor: text; padding-block: 12px; }
+.text {
+  font-family: var(--f-type); font-size: clamp(22px, 3.4vw, 30px); line-height: 1.8;
+  white-space: pre-wrap; overflow-wrap: anywhere; letter-spacing: 0.02em;
+  min-height: calc(1.8em * 2); user-select: none; text-align: left;
+}
+.text span { color: var(--faint); border-radius: 2px; }
+.text span.done { color: var(--ink); }
+.text span.miss { color: var(--err); }
+.text span.cur { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+.text span.cur.bad { color: var(--err); box-shadow: inset 0 -2px 0 var(--err); }
+.sheet.blurred .text { filter: blur(3px); opacity: .5; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+.sink { position: absolute; opacity: 0; width: 1px; height: 1px; left: 0; top: 0; border: 0; padding: 0; }
+.under { display: flex; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.under .live { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.result b { color: var(--ink); font-family: var(--f-num); font-weight: 400; }
+
+/* Keyboard */
+.kb-wrap { container-type: inline-size; }
+.kb { --g: 4px; --u: calc((100cqw - 14 * var(--g)) / 15); display: flex; flex-direction: column; gap: var(--g); }
+.row { display: flex; gap: var(--g); }
+.k {
+  flex: var(--w, 1) var(--w, 1) 0; min-width: 0; height: min(46px, calc(var(--u) * 0.92));
+  background: var(--key); border: 1px solid var(--line); border-radius: 5px;
+  position: relative; display: grid; place-items: center;
+  font-family: var(--f-type); font-size: clamp(11px, calc(var(--u) * 0.38), 18px); color: var(--ink);
+  transition: background .1s, color .1s;
+}
+.k .lat { position: absolute; left: 4px; top: 1px; font-family: var(--f-num); font-size: clamp(8px, calc(var(--u) * 0.18), 10px); color: var(--faint); }
+.k .up { position: absolute; right: 4px; top: 1px; font-size: clamp(8px, calc(var(--u) * 0.22), 11px); color: var(--muted); }
+.k.mod { font-family: var(--f-ui); font-size: clamp(9px, calc(var(--u) * 0.22), 11px); color: var(--muted); background: transparent; }
+.k.dim { color: var(--faint); background: transparent; }
+.k.bump::before { content: ""; position: absolute; bottom: 5px; width: 24%; height: 1.5px; border-radius: 2px; background: var(--muted); }
+.k.next { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.k.next .lat, .k.next .up { color: var(--bg); opacity: .75; }
+.k.shift-next { background: color-mix(in oklab, var(--accent) 22%, var(--key)); color: var(--ink); }
+.k.wrong { background: var(--err); color: var(--bg); border-color: var(--err); }
+.finger { margin-top: 10px; font-size: 13px; color: var(--muted); text-align: center; }
+.finger b { color: var(--ink); font-weight: 500; }
+.finger .ch { font-family: var(--f-type); font-size: 15px; color: var(--accent); }
+body.no-labels .k .lat { display: none; }
+@container (max-width: 520px) { .k .lat, .k .up { display: none; } .kb { --g: 3px; } }
+
+/* Chart */
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .tgt { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.chart .ln { stroke: var(--accent); stroke-width: 1.75; fill: none; }
+.chart .ar { fill: var(--accent); opacity: .08; }
+.chart .dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.chart text { fill: var(--muted); font-family: var(--f-num); font-size: 11px; }
+.chart text.tl { fill: var(--muted); }
+.chart .empty { fill: var(--muted); font-family: var(--f-ui); font-size: 13px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px;
+  z-index: 20; max-width: calc(100% - 32px);
+}
+.toast .ch { font-family: var(--f-type); font-size: 19px; margin: 0 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="brand">Ստեղն</span>
+    <nav class="nav">
+      <span id="layoutSeg"></span>
+      <button id="progBtn" class="link" type="button" aria-expanded="false" aria-controls="progress">Progress</button>
+      <button id="setBtn" class="link" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
+    </nav>
+  </header>
+
+  <section class="panel chart" id="progress" hidden aria-label="Progress">
+    <svg class="full" id="chart" viewBox="0 0 640 190" role="img" aria-label="Words per minute across lessons"></svg>
+  </section>
+
+  <section class="panel" id="settings" hidden aria-label="Settings">
+    <div class="field">
+      <label for="target">Target speed per letter</label>
+      <div class="range-row">
+        <input type="range" id="target" min="20" max="80" step="5" value="35">
+        <output id="targetOut">35 WPM</output>
+      </div>
+      <span class="hint">The next letter unlocks when every letter reaches this.</span>
+    </div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="optReal" checked> Use real words</label>
+      <label class="check"><input type="checkbox" id="optCaps"> Capital letters</label>
+      <label class="check"><input type="checkbox" id="optPunct"> Punctuation <span class="arm hint">։ ,</span></label>
+    </div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="optKb" checked> Keyboard</label>
+      <label class="check"><input type="checkbox" id="optLabels" checked> Latin key labels</label>
+      <label class="check"><input type="checkbox" id="optStop" checked> Stop on mistakes</label>
+    </div>
+    <div class="full row-actions">
+      <button id="unlockBtn" type="button">Unlock next letter</button>
+      <button id="lockBtn" type="button">Remove last letter</button>
+      <span class="spacer"></span>
+      <span id="resetZone"><button id="resetBtn" class="danger" type="button">Reset progress</button></span>
+    </div>
+    <div class="full field">
+      <div class="row-actions">
+        <button id="exportBtn" type="button">Save backup (.json)</button>
+        <button id="importBtn" type="button">Load backup…</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+        <span class="hint" id="dataStatus" role="status">Progress saves in this browser automatically.</span>
+      </div>
+      <div id="importConfirm" hidden class="data-confirm"></div>
+      <textarea id="exportText" readonly hidden aria-label="Backup JSON" rows="5"></textarea>
+    </div>
+    <div class="full about">
+      <p><b id="layoutFull">Armenian Phonetic</b>. <span id="layoutNote"></span> Each layout keeps its own progress, and you don't need it installed.</p>
+      <p>Lessons use real Western Armenian words (about 2,900 forms, classical spelling), at most twice each per lesson, leaning toward your slowest letter. Home row: <span class="arm" id="homeRow"></span>. <kbd>Esc</kbd> skips to a new lesson.</p>
+    </div>
+  </section>
+
+  <section class="letters" aria-label="Letters">
+    <div class="ladder" id="ladder"></div>
+    <div class="keyinfo" id="keyinfo"></div>
+  </section>
+
+  <div class="stats" aria-live="polite">
+    <span><b id="mSpeed">–</b> wpm</span>
+    <span><b id="mAcc">–</b>%</span>
+    <span>avg <b id="mAvg">–</b></span>
+    <span><b id="mCount">0</b> lessons</span>
+    <span><b id="unlockCount">6</b>/38 letters</span>
+    <span>focus <b class="arm" id="mFocus">ա</b></span>
+  </div>
+
+  <section class="sheet" id="sheet" aria-label="Typing area">
+    <div class="text" id="text" aria-live="off"></div>
+    <div class="overlay" id="overlay" hidden><span>Click or press any key to continue</span></div>
+    <input class="sink" id="sink" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input">
+    <div class="under">
+      <span><span id="lessonLabel">Lesson 1</span> · <span class="live" id="live">timing starts on your first key</span></span>
+      <span class="result" id="result"></span>
+      <button id="newBtn" class="link" type="button" title="New lesson (Esc)">Skip</button>
+    </div>
+  </section>
+
+  <section class="kb-wrap" id="kbWrap" aria-label="Keyboard map">
+    <div class="kb" id="kb"></div>
+    <div class="finger" id="finger"></div>
+  </section>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Layouts (Windows) ---------- */
+const LAYOUTS = {
+  phonetic: {
+    name: 'Phonetic', full: 'Armenian Phonetic (your Windows layout)',
+    note: 'Letters sit on Latin look-alikes by Western sound (պ on B, բ on P, տ on D, դ on T, կ on G, գ on K), with օ on W, ռ on 8 and է թ փ ձ ջ ւ և չ ճ ժ along the number row. Verjaket <span class="arm">։</span> is <kbd>Shift</kbd>+<kbd>;</kbd>.',
+    prefer: { 'ւ': 'KeyU', 'Ւ': 'KeyU' },
+    map: {
+      Backquote:['՝','՜'], Digit1:['է','Է'], Digit2:['թ','Թ'], Digit3:['փ','Փ'], Digit4:['ձ','Ձ'], Digit5:['ջ','Ջ'],
+      Digit6:['ւ','Ւ'], Digit7:['և','և'], Digit8:['ռ','Ռ'], Digit9:['չ','Չ'], Digit0:['ճ','Ճ'], Minus:['-','—'], Equal:['ժ','Ժ'],
+      KeyQ:['ք','Ք'], KeyW:['օ','Օ'], KeyE:['ե','Ե'], KeyR:['ր','Ր'], KeyT:['դ','Դ'], KeyY:['ը','Ը'], KeyU:['ւ','Ւ'],
+      KeyI:['ի','Ի'], KeyO:['ո','Ո'], KeyP:['բ','Բ'], BracketLeft:['խ','Խ'], BracketRight:['ծ','Ծ'], Backslash:['շ','Շ'],
+      KeyA:['ա','Ա'], KeyS:['ս','Ս'], KeyD:['տ','Տ'], KeyF:['ֆ','Ֆ'], KeyG:['կ','Կ'], KeyH:['հ','Հ'], KeyJ:['յ','Յ'],
+      KeyK:['գ','Գ'], KeyL:['լ','Լ'], Semicolon:[';','։'], Quote:['՛','"'],
+      KeyZ:['զ','Զ'], KeyX:['ղ','Ղ'], KeyC:['ց','Ց'], KeyV:['վ','Վ'], KeyB:['պ','Պ'], KeyN:['ն','Ն'], KeyM:['մ','Մ'],
+      Comma:[',','<'], Period:['․','>'], Slash:['/','՞']
+    }
+  },
+  ephonetic: {
+    name: 'Eastern phonetic', full: 'Armenian Phonetic (Microsoft default, Eastern sounds)',
+    note: 'Letters sit on their Latin look-alikes by Eastern sound (պ on P, բ on B, դ on D), with է թ փ ձ ջ ր չ ճ ժ on the number row. Verjaket <span class="arm">։</span> is <kbd>Shift</kbd>+<kbd>;</kbd>.',
+    prefer: { 'ւ': 'KeyU', 'Ւ': 'KeyU' },
+    map: {
+      Backquote:['՝','՜'], Digit1:['է','Է'], Digit2:['թ','Թ'], Digit3:['փ','Փ'], Digit4:['ձ','Ձ'], Digit5:['ջ','Ջ'],
+      Digit6:['ւ','Ւ'], Digit7:['և','և'], Digit8:['ր','Ր'], Digit9:['չ','Չ'], Digit0:['ճ','Ճ'], Minus:['-','—'], Equal:['ժ','Ժ'],
+      KeyQ:['ք','Ք'], KeyW:['ո','Ո'], KeyE:['ե','Ե'], KeyR:['ռ','Ռ'], KeyT:['տ','Տ'], KeyY:['ը','Ը'], KeyU:['ւ','Ւ'],
+      KeyI:['ի','Ի'], KeyO:['օ','Օ'], KeyP:['պ','Պ'], BracketLeft:['խ','Խ'], BracketRight:['ծ','Ծ'], Backslash:['շ','Շ'],
+      KeyA:['ա','Ա'], KeyS:['ս','Ս'], KeyD:['դ','Դ'], KeyF:['ֆ','Ֆ'], KeyG:['գ','Գ'], KeyH:['հ','Հ'], KeyJ:['յ','Յ'],
+      KeyK:['կ','Կ'], KeyL:['լ','Լ'], Semicolon:[';','։'], Quote:['՛','"'],
+      KeyZ:['զ','Զ'], KeyX:['ղ','Ղ'], KeyC:['ց','Ց'], KeyV:['վ','Վ'], KeyB:['բ','Բ'], KeyN:['ն','Ն'], KeyM:['մ','Մ'],
+      Comma:[',','<'], Period:['․','>'], Slash:['/','՞']
+    }
+  },
+  western: {
+    name: 'Western legacy', full: 'Armenian Western (Legacy)',
+    note: 'The typewriter arrangement with letters placed by Western sound (պ on B, բ on P, կ on G, տ on D, ւ on V). Verjaket <span class="arm">։</span> is the <kbd>1</kbd> key; digits need <kbd>Shift</kbd>.',
+    prefer: {},
+    map: {
+      Backquote:['՝','՜'], Digit1:['։','1'], Digit2:['ձ','Ձ'], Digit3:['յ','Յ'], Digit4:['՛','3'], Digit5:[',','4'],
+      Digit6:['-','9'], Digit7:['.','և'], Digit8:['«','('], Digit9:['»',')'], Digit0:['օ','Օ'], Minus:['ռ','Ռ'], Equal:['ժ','Ժ'],
+      KeyQ:['խ','Խ'], KeyW:['վ','Վ'], KeyE:['է','Է'], KeyR:['ր','Ր'], KeyT:['դ','Դ'], KeyY:['ե','Ե'], KeyU:['ը','Ը'],
+      KeyI:['ի','Ի'], KeyO:['ո','Ո'], KeyP:['բ','Բ'], BracketLeft:['չ','Չ'], BracketRight:['ջ','Ջ'], Backslash:["'",'՞'],
+      KeyA:['ա','Ա'], KeyS:['ս','Ս'], KeyD:['տ','Տ'], KeyF:['ֆ','Ֆ'], KeyG:['կ','Կ'], KeyH:['հ','Հ'], KeyJ:['ճ','Ճ'],
+      KeyK:['ք','Ք'], KeyL:['լ','Լ'], Semicolon:['թ','Թ'], Quote:['փ','Փ'],
+      KeyZ:['զ','Զ'], KeyX:['ց','Ց'], KeyC:['գ','Գ'], KeyV:['ւ','Ւ'], KeyB:['պ','Պ'], KeyN:['ն','Ն'], KeyM:['մ','Մ'],
+      Comma:['շ','Շ'], Period:['ղ','Ղ'], Slash:['ծ','Ծ']
+    }
+  },
+  eastern: {
+    name: 'Eastern legacy', full: 'Armenian Eastern (Legacy)',
+    note: 'The same typewriter arrangement with Eastern sounds (պ on P, բ on B, ք on G, դ on D, ւ on W). Verjaket <span class="arm">։</span> is the <kbd>1</kbd> key; digits need <kbd>Shift</kbd>.',
+    prefer: {},
+    map: {
+      Backquote:['՝','՜'], Digit1:['։','1'], Digit2:['ձ','Ձ'], Digit3:['յ','Յ'], Digit4:['՛','3'], Digit5:[',','4'],
+      Digit6:['-','9'], Digit7:['.','և'], Digit8:['«','('], Digit9:['»',')'], Digit0:['օ','Օ'], Minus:['ռ','Ռ'], Equal:['ժ','Ժ'],
+      KeyQ:['խ','Խ'], KeyW:['ւ','Ւ'], KeyE:['է','Է'], KeyR:['ր','Ր'], KeyT:['տ','Տ'], KeyY:['ե','Ե'], KeyU:['ը','Ը'],
+      KeyI:['ի','Ի'], KeyO:['ո','Ո'], KeyP:['պ','Պ'], BracketLeft:['չ','Չ'], BracketRight:['ջ','Ջ'], Backslash:["'",'՞'],
+      KeyA:['ա','Ա'], KeyS:['ս','Ս'], KeyD:['դ','Դ'], KeyF:['ֆ','Ֆ'], KeyG:['ք','Ք'], KeyH:['հ','Հ'], KeyJ:['ճ','Ճ'],
+      KeyK:['կ','Կ'], KeyL:['լ','Լ'], Semicolon:['թ','Թ'], Quote:['փ','Փ'],
+      KeyZ:['զ','Զ'], KeyX:['ց','Ց'], KeyC:['գ','Գ'], KeyV:['վ','Վ'], KeyB:['բ','Բ'], KeyN:['ն','Ն'], KeyM:['մ','Մ'],
+      Comma:['շ','Շ'], Period:['ղ','Ղ'], Slash:['ծ','Ծ']
+    }
+  }
+};
+let layoutId = 'phonetic';
+let LAYOUT = LAYOUTS.phonetic.map;
+const LATIN = {
+  Backquote:'`', Digit1:'1', Digit2:'2', Digit3:'3', Digit4:'4', Digit5:'5', Digit6:'6', Digit7:'7', Digit8:'8', Digit9:'9', Digit0:'0',
+  Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Backslash:'\\', Semicolon:';', Quote:"'", Comma:',', Period:'.', Slash:'/'
+};
+const latin = code => LATIN[code] || code.replace(/^Key/, '');
+const ROWS = [
+  [['Backquote'],['Digit1'],['Digit2'],['Digit3'],['Digit4'],['Digit5'],['Digit6'],['Digit7'],['Digit8'],['Digit9'],['Digit0'],['Minus'],['Equal'],['Backspace',2,'⌫']],
+  [['Tab',1.5,'Tab'],['KeyQ'],['KeyW'],['KeyE'],['KeyR'],['KeyT'],['KeyY'],['KeyU'],['KeyI'],['KeyO'],['KeyP'],['BracketLeft'],['BracketRight'],['Backslash',1.5,'\\']],
+  [['CapsLock',1.75,'Caps'],['KeyA'],['KeyS'],['KeyD'],['KeyF'],['KeyG'],['KeyH'],['KeyJ'],['KeyK'],['KeyL'],['Semicolon'],['Quote'],['Enter',2.25,'Enter']],
+  [['ShiftLeft',2.25,'Shift'],['KeyZ'],['KeyX'],['KeyC'],['KeyV'],['KeyB'],['KeyN'],['KeyM'],['Comma'],['Period'],['Slash'],['ShiftRight',2.75,'Shift']],
+  [['Gap1',4.25,''],['Space',6.5,'Space'],['Gap2',4.25,'']]
+];
+const FINGER_OF = {};
+const F = (f, codes) => codes.forEach(c => FINGER_OF[c] = f);
+F('left pinky', ['Backquote','Digit1','KeyQ','KeyA','KeyZ','ShiftLeft']);
+F('left ring', ['Digit2','KeyW','KeyS','KeyX']);
+F('left middle', ['Digit3','KeyE','KeyD','KeyC']);
+F('left index', ['Digit4','Digit5','KeyR','KeyT','KeyF','KeyG','KeyV','KeyB']);
+F('right index', ['Digit6','Digit7','KeyY','KeyU','KeyH','KeyJ','KeyN','KeyM']);
+F('right middle', ['Digit8','KeyI','KeyK','Comma']);
+F('right ring', ['Digit9','KeyO','KeyL','Period']);
+F('right pinky', ['Digit0','Minus','Equal','KeyP','BracketLeft','BracketRight','Backslash','Semicolon','Quote','Slash','ShiftRight']);
+F('thumb', ['Space']);
+
+let CHAR_TO = {}; // char -> {code, shift}
+function buildCharMap() {
+  CHAR_TO = {};
+  for (const [code, [lo, up]] of Object.entries(LAYOUT)) {
+    if (!(lo in CHAR_TO)) CHAR_TO[lo] = { code, shift: false };
+    if (!(up in CHAR_TO)) CHAR_TO[up] = { code, shift: true };
+  }
+  for (const [ch, code] of Object.entries(LAYOUTS[layoutId].prefer)) CHAR_TO[ch] = { code, shift: ch !== ch.toLowerCase() };
+  CHAR_TO[' '] = { code: 'Space', shift: false };
+}
+
+/* Unlock order: each next letter is the one that opens up the most real words */
+const ORDER = ['ա','ն','ր','ե','կ','ք','մ','լ','ը','ս','ի','տ','պ','ց','գ','ո','ւ','հ','դ','ղ','խ','շ','յ','է','թ','բ','ռ','ծ','օ','զ','վ','ճ','չ','փ','ձ','ջ','ժ','ֆ'];
+const START = 6;
+
+/* ---------- Western Armenian words (classical orthography) ---------- */
+const WORDS = ["ես", "դուն", "ան", "մենք", "դուք", "անոնք", "ինծի", "քեզի", "իրեն", "մեզի", "ձեզի", "իրենց", "զիս", "քեզ", "զինք", "մեզ", "ձեզ", "զիրենք", "իմ", "քու", "իր", "մեր", "ձեր", "ասիկա", "ատիկա", "անիկա", "ասոնք", "ատոնք", "ասոր", "ատոր", "անոր", "ասոնց", "ատոնց", "անոնց", "ով", "ովքեր", "ինչ", "ինչեր", "որ", "որոնք", "ինք", "ինքզինք", "իրար", "ամէն", "ամէնքը", "բոլոր", "բոլորը", "ուրիշ", "ուրիշներ", "նոյն", "որեւէ", "ոեւէ", "մէկը", "միւսը", "այս", "այդ", "այն", "ու", "եւ", "ալ", "բայց", "սակայն", "հետեւաբար", "որովհետեւ", "եթէ", "երբ", "մինչ", "թէ", "կամ", "ոչ", "դեռ", "արդէն", "նորէն", "միշտ", "երբեմն", "յաճախ", "հազիւ", "գրեթէ", "շուտով", "անմիջապէս", "յանկարծ", "վերջապէս", "իսկապէս", "անշուշտ", "հաւանաբար", "թերեւս", "գուցէ", "միայն", "նոյնիսկ", "մանաւանդ", "այսպէս", "այնպէս", "ինչպէս", "ինչու", "ուր", "ուրկէ", "հոս", "հոն", "հոդ", "հոսկէ", "հոնկէ", "վեր", "վար", "ներս", "դուրս", "մէջ", "վրայ", "տակ", "քով", "մօտ", "առջեւ", "ետեւ", "դէմ", "միջեւ", "շուրջ", "հետ", "համար", "մասին", "պէս", "փոխանակ", "առանց", "մինչեւ", "դէպի", "յետոյ", "առաջ", "հիմա", "այսօր", "երէկ", "վաղը", "միասին", "մինակ", "դարձեալ", "նաեւ", "հապա", "շատ", "քիչ", "քանի", "մը", "բաւական", "աւելի", "նուազ", "ամենէն", "շատոնց", "կանուխ", "ուշ", "արագօրէն", "կամաց", "մէկէն", "եմ", "է", "ենք", "էք", "են", "էի", "էիր", "էր", "էինք", "էիք", "էին", "ըլլալ", "եղայ", "եղար", "եղաւ", "եղանք", "եղաք", "եղան", "ըլլամ", "ըլլաս", "ըլլայ", "ըլլանք", "ըլլաք", "ըլլան", "ունիմ", "ունիս", "ունի", "ունինք", "ունիք", "ունին", "ունէի", "ունէիր", "ունէր", "ունէինք", "ունէին", "կայ", "կան", "կար", "կային", "պիտի", "կը", "չեմ", "չես", "չի", "չենք", "չէք", "չեն", "չէի", "չէիր", "չէր", "չէինք", "չէին", "գիտեմ", "գիտես", "գիտէ", "գիտենք", "գիտէք", "գիտեն", "կրնամ", "կրնաս", "կրնայ", "կրնանք", "կրնաք", "կրնան", "մէկ", "երկու", "երեք", "չորս", "հինգ", "վեց", "եօթը", "ութը", "ինը", "տասը", "տասնմէկ", "տասներկու", "տասներեք", "տասնչորս", "տասնհինգ", "տասնվեց", "տասնեօթը", "տասնութը", "տասնինը", "քսան", "երեսուն", "քառասուն", "յիսուն", "վաթսուն", "եօթանասուն", "ութսուն", "իննսուն", "հարիւր", "հազար", "միլիոն", "առաջին", "երկրորդ", "երրորդ", "չորրորդ", "հինգերորդ", "վեցերորդ", "եօթներորդ", "ութերորդ", "իններորդ", "տասներորդ", "վերջին", "կիրակի", "երկուշաբթի", "երեքշաբթի", "չորեքշաբթի", "հինգշաբթի", "ուրբաթ", "շաբաթ", "յունուար", "փետրուար", "մարտ", "ապրիլ", "մայիս", "յունիս", "յուլիս", "օգոստոս", "սեպտեմբեր", "հոկտեմբեր", "նոյեմբեր", "դեկտեմբեր", "բարեւ", "բարի", "լոյս", "գիշեր", "իրիկուն", "շնորհակալ", "մերսի", "խնդրեմ", "հաճիս", "ներողութիւն", "ցտեսութիւն", "այո", "չէ", "ապրիս", "շնորհաւոր", "կեցցէ", "մեծ", "պզտիկ", "նոր", "հին", "լաւ", "աղէկ", "գէշ", "գեղեցիկ", "աղուոր", "տգեղ", "երկար", "կարճ", "բարձր", "ցած", "լայն", "նեղ", "հաստ", "բարակ", "ծանր", "թեթեւ", "տաք", "պաղ", "չոր", "թաց", "մաքուր", "կեղտոտ", "արագ", "դժուար", "դիւրին", "հարուստ", "աղքատ", "ուրախ", "տխուր", "երջանիկ", "դժբախտ", "չար", "խելացի", "յիմար", "ծոյլ", "աշխատասէր", "քաջ", "վախկոտ", "հանգիստ", "անհանգիստ", "լեցուն", "պարապ", "բաց", "գոց", "մօտիկ", "հեռաւոր", "հեռու", "նման", "տարբեր", "կարեւոր", "հետաքրքրական", "ձանձրալի", "համով", "անհամ", "քաղցր", "դառն", "թթու", "աղի", "կարմիր", "կանաչ", "կապոյտ", "դեղին", "ճերմակ", "սեւ", "մոխրագոյն", "վարդագոյն", "նարնջագոյն", "մանիշակագոյն", "շագանակագոյն", "ոսկեգոյն", "երիտասարդ", "ծեր", "հիւանդ", "առողջ", "յոգնած", "քաղցած", "ծարաւ", "գոհ", "սիրելի", "ազնիւ", "համեստ", "պարզ", "բարդ", "ճիշդ", "սխալ", "ազատ", "զբաղած", "յաջորդ", "նախորդ", "ամբողջ", "կէս", "լման", "իսկական", "կեղծ", "գաղտնի", "յայտնի", "հայկական", "արաբական", "ֆրանսական", "անգլիական", "լիբանանեան", "սուրբ", "մութ", "լուսաւոր", "պայծառ", "խոր", "ամուր", "տկար", "զօրաւոր", "փափուկ", "կարծր", "սուր", "կլոր", "քառակուսի", "կարելի", "անկարելի", "պէտք", "ուշադիր", "անուշ", "թանկ", "աժան", "կենդանի", "մեռած", "լուռ", "բարձրաձայն", "ազգային", "միջազգային", "ամէնօրեայ", "ընտիր", "լաւագոյն", "գեղեցկագոյն", "գլուխ", "գլուխը", "գլուխներ", "գլուխները", "մազ", "մազը", "մազեր", "մազերը", "երես", "երեսը", "երեսներ", "երեսները", "ճակատ", "ճակատը", "ճակատներ", "ճակատները", "աչք", "աչքը", "աչքեր", "աչքերը", "ականջ", "ականջը", "ականջներ", "ականջները", "քիթ", "քիթը", "քիթեր", "քիթերը", "բերան", "բերանը", "բերաններ", "բերանները", "շրթունք", "շրթունքը", "շրթունքներ", "շրթունքները", "ակռայ", "ակռան", "ակռաներ", "ակռաները", "լեզու", "լեզուը", "լեզուներ", "լեզուները", "վիզ", "վիզը", "վիզեր", "վիզերը", "ուս", "ուսը", "ուսեր", "ուսերը", "թեւ", "թեւը", "թեւեր", "թեւերը", "ձեռք", "ձեռքը", "ձեռքեր", "ձեռքերը", "մատ", "մատը", "մատներ", "մատները", "եղունգ", "եղունգը", "եղունգներ", "եղունգները", "կուրծք", "կուրծքը", "փոր", "փորը", "փորեր", "փորերը", "կռնակ", "կռնակը", "կռնակներ", "կռնակները", "ոտք", "ոտքը", "ոտքեր", "ոտքերը", "ծունկ", "ծունկը", "ծունկներ", "ծունկները", "սիրտ", "սիրտը", "սիրտեր", "սիրտերը", "ոսկոր", "ոսկորը", "ոսկորներ", "ոսկորները", "մայր", "մայրը", "մայրեր", "մայրերը", "հայր", "հայրը", "հայրեր", "հայրերը", "եղբայր", "եղբայրը", "եղբայրներ", "եղբայրները", "քոյր", "քոյրը", "քոյրեր", "քոյրերը", "զաւակ", "զաւակը", "զաւակներ", "զաւակները", "որդի", "որդին", "որդիներ", "որդիները", "ամուսին", "ամուսինը", "ամուսիններ", "ամուսինները", "թոռ", "թոռը", "հօրեղբայր", "հօրեղբայրը", "հօրեղբայրներ", "հօրեղբայրները", "մօրեղբայր", "մօրեղբայրը", "մօրեղբայրներ", "մօրեղբայրները", "քեռի", "քեռին", "քեռիներ", "քեռիները", "հօրաքոյր", "հօրաքոյրը", "հօրաքոյրներ", "հօրաքոյրները", "մօրաքոյր", "մօրաքոյրը", "մօրաքոյրներ", "մօրաքոյրները", "զարմիկ", "զարմիկը", "զարմիկներ", "զարմիկները", "ընտանիք", "ընտանիքը", "մանուկ", "մանուկը", "մանուկներ", "մանուկները", "երեխայ", "երեխան", "երեխաներ", "երեխաները", "պատանի", "պատանին", "պատանիներ", "պատանիները", "երիտասարդը", "երիտասարդներ", "երիտասարդները", "ծերունի", "ծերունին", "ծերունիներ", "ծերունիները", "դրացի", "դրացին", "դրացիներ", "դրացիները", "ընկեր", "ընկերը", "ընկերներ", "ընկերները", "ընկերուհի", "ընկերուհին", "ընկերուհիներ", "ընկերուհիները", "բարեկամ", "բարեկամը", "բարեկամներ", "բարեկամները", "հիւր", "հիւրը", "հիւրեր", "հիւրերը", "աղջիկ", "աղջիկը", "աղջիկներ", "աղջիկները", "կին", "կինը", "կիներ", "կիները", "նորածին", "նորածինը", "նորածիններ", "նորածինները", "տուն", "տունը", "տուներ", "տուները", "սենեակ", "սենեակը", "սենեակներ", "սենեակները", "խոհանոց", "խոհանոցը", "խոհանոցներ", "խոհանոցները", "լոգարան", "լոգարանը", "լոգարաններ", "լոգարանները", "ննջարան", "ննջարանը", "ննջարաններ", "ննջարանները", "պատշգամ", "պատշգամը", "պատշգամներ", "պատշգամները", "պատուհան", "պատուհանը", "պատուհաններ", "պատուհանները", "պատ", "պատը", "պատեր", "պատերը", "տանիք", "տանիքը", "տանիքներ", "տանիքները", "յատակ", "յատակը", "յատակներ", "յատակները", "աստիճան", "աստիճանը", "աստիճաններ", "աստիճանները", "սանդուխ", "սանդուխը", "սանդուխներ", "սանդուխները", "սեղան", "սեղանը", "սեղաններ", "սեղանները", "աթոռ", "աթոռը", "բազմոց", "բազմոցը", "բազմոցներ", "բազմոցները", "անկողին", "անկողինը", "անկողիններ", "անկողինները", "բարձ", "բարձը", "բարձեր", "բարձերը", "վերմակ", "վերմակը", "վերմակներ", "վերմակները", "պահարան", "պահարանը", "պահարաններ", "պահարանները", "դարակ", "դարակը", "դարակներ", "դարակները", "հայելի", "հայելին", "հայելիներ", "հայելիները", "լամբար", "լամբարը", "լամբարներ", "լամբարները", "ժամացոյց", "ժամացոյցը", "ժամացոյցներ", "ժամացոյցները", "պատկեր", "պատկերը", "պատկերներ", "պատկերները", "վարագոյր", "վարագոյրը", "վարագոյրներ", "վարագոյրները", "գորգ", "գորգը", "գորգեր", "գորգերը", "բանալի", "բանալին", "բանալիներ", "բանալիները", "սառնարան", "սառնարանը", "սառնարաններ", "սառնարանները", "վառարան", "վառարանը", "վառարաններ", "վառարանները", "դանակ", "դանակը", "դանակներ", "դանակները", "պատառաքաղ", "պատառաքաղը", "պատառաքաղներ", "պատառաքաղները", "գդալ", "գդալը", "գդալներ", "գդալները", "պնակ", "պնակը", "պնակներ", "պնակները", "բաժակ", "բաժակը", "բաժակներ", "բաժակները", "շիշ", "շիշը", "շիշեր", "շիշերը", "թաս", "թասը", "թասեր", "թասերը", "կաթսայ", "կաթսան", "կաթսաներ", "կաթսաները", "տուփ", "տուփը", "տուփեր", "տուփերը", "պայուսակ", "պայուսակը", "պայուսակներ", "պայուսակները", "ճամպրուկ", "ճամպրուկը", "ճամպրուկներ", "ճամպրուկները", "գլխարկ", "գլխարկը", "գլխարկներ", "գլխարկները", "շապիկ", "շապիկը", "շապիկներ", "շապիկները", "տաբատ", "տաբատը", "տաբատներ", "տաբատները", "կօշիկ", "կօշիկը", "կօշիկներ", "կօշիկները", "գուլպայ", "գուլպան", "գուլպաներ", "գուլպաները", "վերարկու", "վերարկուը", "վերարկուներ", "վերարկուները", "բաճկոն", "բաճկոնը", "բաճկոններ", "բաճկոնները", "փողկապ", "փողկապը", "փողկապներ", "փողկապները", "ակնոց", "ակնոցը", "ակնոցներ", "ակնոցները", "մատանի", "մատանին", "մատանիներ", "մատանիները", "դպրոց", "դպրոցը", "դպրոցներ", "դպրոցները", "դասարան", "դասարանը", "դասարաններ", "դասարանները", "ուսուցիչ", "ուսուցիչը", "ուսուցիչներ", "ուսուցիչները", "ուսուցչուհի", "ուսուցչուհին", "ուսուցչուհիներ", "ուսուցչուհիները", "աշակերտ", "աշակերտը", "աշակերտներ", "աշակերտները", "ուսանող", "ուսանողը", "ուսանողներ", "ուսանողները", "համալսարան", "համալսարանը", "համալսարաններ", "համալսարանները", "դաս", "դասը", "դասեր", "դասերը", "գիրք", "գիրքը", "գիրքեր", "գիրքերը", "տետր", "տետրը", "տետրեր", "տետրերը", "գրիչ", "գրիչը", "գրիչներ", "գրիչները", "մատիտ", "մատիտը", "մատիտներ", "մատիտները", "ռետին", "ռետինը", "ռետիններ", "ռետինները", "քանոն", "քանոնը", "քանոններ", "քանոնները", "էջ", "էջը", "էջեր", "էջերը", "նամակ", "նամակը", "նամակներ", "նամակները", "բառ", "բառը", "բառեր", "բառերը", "նախադասութիւն", "նախադասութիւնը", "գրադարան", "գրադարանը", "գրադարաններ", "գրադարանները", "գրասեղան", "գրասեղանը", "գրասեղաններ", "գրասեղանները", "տախտակ", "տախտակը", "տախտակներ", "տախտակները", "քննութիւն", "քննութիւնը", "պտուղ", "պտուղը", "պտուղներ", "պտուղները", "խնձոր", "խնձորը", "խնձորներ", "խնձորները", "տանձ", "տանձը", "տանձեր", "տանձերը", "նարինջ", "նարինջը", "նարինջներ", "նարինջները", "կիտրոն", "կիտրոնը", "կիտրոններ", "կիտրոնները", "դեղձ", "դեղձը", "դեղձեր", "դեղձերը", "ծիրան", "ծիրանը", "ծիրաններ", "ծիրանները", "կեռաս", "կեռասը", "կեռասներ", "կեռասները", "սալոր", "սալորը", "սալորներ", "սալորները", "թուզ", "թուզը", "թուզեր", "թուզերը", "նուռ", "նուռը", "սեխ", "սեխը", "սեխեր", "սեխերը", "ձմերուկ", "ձմերուկը", "ձմերուկներ", "ձմերուկները", "ելակ", "ելակը", "ելակներ", "ելակները", "ընկոյզ", "ընկոյզը", "ընկոյզներ", "ընկոյզները", "նուշ", "նուշը", "նուշեր", "նուշերը", "լոլիկ", "լոլիկը", "լոլիկներ", "լոլիկները", "վարունգ", "վարունգը", "վարունգներ", "վարունգները", "սոխ", "սոխը", "սոխեր", "սոխերը", "գետնախնձոր", "գետնախնձորը", "գետնախնձորներ", "գետնախնձորները", "գազար", "գազարը", "գազարներ", "գազարները", "կաղամբ", "կաղամբը", "կաղամբներ", "կաղամբները", "դդում", "դդումը", "դդումներ", "դդումները", "բադրիջան", "բադրիջանը", "բադրիջաններ", "բադրիջանները", "ձիթապտուղ", "ձիթապտուղը", "ձիթապտուղներ", "ձիթապտուղները", "հաւկիթ", "հաւկիթը", "հաւկիթներ", "հաւկիթները", "ապուր", "ապուրը", "ապուրներ", "ապուրները", "աղցան", "աղցանը", "աղցաններ", "աղցանները", "աստղ", "աստղը", "աստղեր", "աստղերը", "ամպ", "ամպը", "ամպեր", "ամպերը", "փոթորիկ", "փոթորիկը", "փոթորիկներ", "փոթորիկները", "ծիածան", "ծիածանը", "ծիածաններ", "ծիածանները", "ծով", "ծովը", "ծովեր", "ծովերը", "լիճ", "լիճը", "լիճեր", "լիճերը", "գետ", "գետը", "գետեր", "գետերը", "առու", "առուը", "առուներ", "առուները", "աղբիւր", "աղբիւրը", "աղբիւրներ", "աղբիւրները", "լեռ", "լեռը", "լեռներ", "լեռները", "բլուր", "բլուրը", "բլուրներ", "բլուրները", "ձոր", "ձորը", "ձորեր", "ձորերը", "դաշտ", "դաշտը", "դաշտեր", "դաշտերը", "անտառ", "անտառը", "ծառ", "ծառը", "ծառեր", "ծառերը", "ծաղիկ", "ծաղիկը", "ծաղիկներ", "ծաղիկները", "տերեւ", "տերեւը", "տերեւներ", "տերեւները", "ճիւղ", "ճիւղը", "ճիւղեր", "ճիւղերը", "արմատ", "արմատը", "արմատներ", "արմատները", "վարդ", "վարդը", "վարդեր", "վարդերը", "շուշան", "շուշանը", "շուշաններ", "շուշանները", "կակաչ", "կակաչը", "կակաչներ", "կակաչները", "մանուշակ", "մանուշակը", "մանուշակներ", "մանուշակները", "կղզի", "կղզին", "կղզիներ", "կղզիները", "ափ", "ափը", "ափեր", "ափերը", "ալիք", "ալիքը", "ալիքներ", "ալիքները", "ժայռ", "ժայռը", "քարայր", "քարայրը", "քարայրներ", "քարայրները", "հրաբուխ", "հրաբուխը", "հրաբուխներ", "հրաբուխները", "անապատ", "անապատը", "անապատներ", "անապատները", "քար", "քարը", "քարեր", "քարերը", "կատու", "կատուը", "կատուներ", "կատուները", "շուն", "շունը", "շուներ", "շուները", "ձի", "ձին", "ձիեր", "ձիերը", "կով", "կովը", "կովեր", "կովերը", "ոչխար", "ոչխարը", "ոչխարներ", "ոչխարները", "այծ", "այծը", "այծեր", "այծերը", "էշ", "էշը", "էշեր", "էշերը", "ուղտ", "ուղտը", "ուղտներ", "ուղտները", "հաւ", "հաւը", "հաւեր", "հաւերը", "աքաղաղ", "աքաղաղը", "աքաղաղներ", "աքաղաղները", "բադ", "բադը", "բադեր", "բադերը", "սագ", "սագը", "սագեր", "սագերը", "թռչուն", "թռչունը", "թռչուններ", "թռչունները", "արծիւ", "արծիւը", "արծիւներ", "արծիւները", "աղաւնի", "աղաւնին", "աղաւնիներ", "աղաւնիները", "ճնճղուկ", "ճնճղուկը", "ճնճղուկներ", "ճնճղուկները", "ագռաւ", "ագռաւը", "ագռաւներ", "ագռաւները", "բու", "բուը", "բուեր", "բուերը", "ձուկ", "ձուկը", "ձուկեր", "ձուկերը", "օձ", "օձը", "օձեր", "օձերը", "գորտ", "գորտը", "գորտեր", "գորտերը", "մուկ", "մուկը", "մուկեր", "մուկերը", "նապաստակ", "նապաստակը", "նապաստակներ", "նապաստակները", "սկիւռ", "սկիւռը", "արջ", "արջը", "արջեր", "արջերը", "գայլ", "գայլը", "գայլեր", "գայլերը", "աղուէս", "աղուէսը", "աղուէսներ", "աղուէսները", "առիւծ", "առիւծը", "առիւծներ", "առիւծները", "վագր", "վագրը", "վագրեր", "վագրերը", "փիղ", "փիղը", "փիղեր", "փիղերը", "կապիկ", "կապիկը", "կապիկներ", "կապիկները", "մեղու", "մեղուը", "մեղուներ", "մեղուները", "ճանճ", "ճանճը", "ճանճեր", "ճանճերը", "մրջիւն", "մրջիւնը", "մրջիւններ", "մրջիւնները", "սարդ", "սարդը", "սարդեր", "սարդերը", "թիթեռ", "թիթեռը", "քաղաք", "քաղաքը", "քաղաքներ", "քաղաքները", "գիւղ", "գիւղը", "գիւղեր", "գիւղերը", "փողոց", "փողոցը", "փողոցներ", "փողոցները", "ճամբայ", "ճամբան", "ճամբաներ", "ճամբաները", "հրապարակ", "հրապարակը", "հրապարակներ", "հրապարակները", "կամուրջ", "կամուրջը", "կամուրջներ", "կամուրջները", "շէնք", "շէնքը", "շէնքեր", "շէնքերը", "խանութ", "խանութը", "խանութներ", "խանութները", "շուկայ", "շուկան", "շուկաներ", "շուկաները", "դեղարան", "դեղարանը", "դեղարաններ", "դեղարանները", "հիւանդանոց", "հիւանդանոցը", "հիւանդանոցներ", "հիւանդանոցները", "եկեղեցի", "եկեղեցին", "եկեղեցիներ", "եկեղեցիները", "պարտէզ", "պարտէզը", "պարտէզներ", "պարտէզները", "զբօսայգի", "զբօսայգին", "զբօսայգիներ", "զբօսայգիները", "կայարան", "կայարանը", "կայարաններ", "կայարանները", "օդակայան", "օդակայանը", "օդակայաններ", "օդակայանները", "նաւահանգիստ", "նաւահանգիստը", "նաւահանգիստներ", "նաւահանգիստները", "թանգարան", "թանգարանը", "թանգարաններ", "թանգարանները", "թատրոն", "թատրոնը", "թատրոններ", "թատրոնները", "շարժանկար", "շարժանկարը", "շարժանկարներ", "շարժանկարները", "ճաշարան", "ճաշարանը", "ճաշարաններ", "ճաշարանները", "սրճարան", "սրճարանը", "սրճարաններ", "սրճարանները", "պանդոկ", "պանդոկը", "պանդոկներ", "պանդոկները", "դրամատուն", "դրամատունը", "դրամատուններ", "դրամատունները", "գրասենեակ", "գրասենեակը", "գրասենեակներ", "գրասենեակները", "գործարան", "գործարանը", "գործարաններ", "գործարանները", "ինքնաշարժ", "ինքնաշարժը", "ինքնաշարժներ", "ինքնաշարժները", "շոգեկառք", "շոգեկառքը", "շոգեկառքներ", "շոգեկառքները", "օդանաւ", "օդանաւը", "օդանաւներ", "օդանաւները", "նաւ", "նաւը", "նաւեր", "նաւերը", "հեծանիւ", "հեծանիւը", "հեծանիւներ", "հեծանիւները", "կառք", "կառքը", "կառքեր", "կառքերը", "տոմս", "տոմսը", "տոմսեր", "տոմսերը", "վայրկեան", "վայրկեանը", "վայրկեաններ", "վայրկեանները", "ժամ", "ժամը", "ժամեր", "ժամերը", "օր", "օրը", "օրեր", "օրերը", "ամիս", "ամիսը", "ամիսներ", "ամիսները", "տարի", "տարին", "տարիներ", "տարիները", "դար", "դարը", "դարեր", "դարերը", "առաւօտ", "առաւօտը", "առաւօտներ", "առաւօտները", "կէսօր", "կէսօրը", "կէսօրներ", "կէսօրները", "գիշերը", "գիշերներ", "գիշերները", "գարուն", "գարունը", "գարուններ", "գարունները", "ամառ", "ամառը", "աշուն", "աշունը", "աշուններ", "աշունները", "ձմեռ", "ձմեռը", "պահ", "պահը", "պահեր", "պահերը", "երազ", "երազը", "երազներ", "երազները", "միտք", "միտքը", "միտքեր", "միտքերը", "գաղափար", "գաղափարը", "գաղափարներ", "գաղափարները", "խորհուրդ", "խորհուրդը", "խորհուրդներ", "խորհուրդները", "հարց", "հարցը", "հարցեր", "հարցերը", "պատասխան", "պատասխանը", "պատասխաններ", "պատասխանները", "խնդիր", "խնդիրը", "խնդիրներ", "խնդիրները", "լուծում", "լուծումը", "լուծումներ", "լուծումները", "որոշում", "որոշումը", "որոշումներ", "որոշումները", "պատճառ", "պատճառը", "արդիւնք", "արդիւնքը", "արդիւնքներ", "արդիւնքները", "օրինակ", "օրինակը", "օրինակներ", "օրինակները", "ձեւ", "ձեւը", "ձեւեր", "ձեւերը", "գոյն", "գոյնը", "գոյներ", "գոյները", "ձայն", "ձայնը", "ձայներ", "ձայները", "երգ", "երգը", "երգեր", "երգերը", "պար", "պարը", "պարեր", "պարերը", "խաղ", "խաղը", "խաղեր", "խաղերը", "տօն", "տօնը", "տօներ", "տօները", "նուէր", "նուէրը", "նուէրներ", "նուէրները", "յիշատակ", "յիշատակը", "յիշատակներ", "յիշատակները", "գործ", "գործը", "գործեր", "գործերը", "գին", "գինը", "գիներ", "գիները", "հաշիւ", "հաշիւը", "հաշիւներ", "հաշիւները", "լուր", "լուրը", "լուրեր", "լուրերը", "թերթ", "թերթը", "թերթեր", "թերթերը", "լրագիր", "լրագիրը", "լրագիրներ", "լրագիրները", "հեռատեսիլ", "հեռատեսիլը", "հեռատեսիլներ", "հեռատեսիլները", "հեռաձայն", "հեռաձայնը", "հեռաձայններ", "հեռաձայնները", "համակարգիչ", "համակարգիչը", "համակարգիչներ", "համակարգիչները", "մեքենայ", "մեքենան", "մեքենաներ", "մեքենաները", "գործիք", "գործիքը", "գործիքներ", "գործիքները", "ծրագիր", "ծրագիրը", "ճարտարագէտ", "ճարտարագէտը", "ճարտարագէտներ", "ճարտարագէտները", "բժիշկ", "բժիշկը", "բժիշկներ", "բժիշկները", "դեղ", "դեղը", "դեղեր", "դեղերը", "վանք", "վանքը", "վանքեր", "վանքերը", "խաչ", "խաչը", "խաչեր", "խաչերը", "աղօթք", "աղօթքը", "աղօթքներ", "աղօթքները", "սաղմոս", "սաղմոսը", "սաղմոսներ", "սաղմոսները", "շարական", "շարականը", "շարականներ", "շարականները", "քահանայ", "քահանան", "քահանաներ", "քահանաները", "վարդապետ", "վարդապետը", "վարդապետներ", "վարդապետները", "եպիսկոպոս", "եպիսկոպոսը", "եպիսկոպոսներ", "եպիսկոպոսները", "հրեշտակ", "հրեշտակը", "հրեշտակներ", "հրեշտակները", "մոմ", "մոմը", "մոմեր", "մոմերը", "զանգ", "զանգը", "զանգեր", "զանգերը", "երգիչ", "երգիչը", "երգիչներ", "երգիչները", "երգչուհի", "երգչուհին", "երգչուհիներ", "երգչուհիները", "նուագախումբ", "նուագախումբը", "նուագախումբներ", "նուագախումբները", "երգչախումբ", "երգչախումբը", "երգչախումբներ", "երգչախումբները", "դաշնակ", "դաշնակը", "դաշնակներ", "դաշնակները", "ջութակ", "ջութակը", "ջութակներ", "ջութակները", "կիթառ", "կիթառը", "թմբուկ", "թմբուկը", "թմբուկներ", "թմբուկները", "դուդուկ", "դուդուկը", "դուդուկներ", "դուդուկները", "եղանակ", "եղանակը", "եղանակներ", "եղանակները", "արշաւ", "արշաւը", "արշաւներ", "արշաւները", "վրան", "վրանը", "վրաններ", "վրանները", "խարոյկ", "խարոյկը", "խարոյկներ", "խարոյկները", "բանակում", "բանակումը", "դրօշ", "դրօշը", "դրօշներ", "դրօշները", "երդում", "երդումը", "երդումներ", "երդումները", "խմբապետ", "խմբապետը", "խմբապետներ", "խմբապետները", "խումբ", "խումբը", "խումբներ", "խումբները", "խմբակ", "խմբակը", "խմբակներ", "խմբակները", "ազգ", "ազգը", "ազգեր", "ազգերը", "երկիր", "երկիրը", "երկիրներ", "երկիրները", "պետութիւն", "պետութիւնը", "ժողով", "ժողովը", "ժողովներ", "ժողովները", "զինուոր", "զինուորը", "զինուորներ", "զինուորները", "թագաւոր", "թագաւորը", "թագաւորներ", "թագաւորները", "թագուհի", "թագուհին", "թագուհիներ", "թագուհիները", "իշխան", "իշխանը", "իշխաններ", "իշխանները", "պալատ", "պալատը", "պալատներ", "պալատները", "դղեակ", "դղեակը", "դղեակներ", "դղեակները", "բանակ", "բանակը", "բանակներ", "բանակները", "սահման", "սահմանը", "սահմաններ", "սահմանները", "քաղաքացի", "քաղաքացին", "քաղաքացիներ", "քաղաքացիները", "տղայ", "տղան", "տղաք", "տղաքը", "մարդ", "մարդը", "մարդիկ", "մարդիկը", "գնդակ", "գնդակը", "գնդակներ", "գնդակները", "խաղալիք", "խաղալիքը", "խաղալիքներ", "խաղալիքները", "հարսանիք", "հարսանիքը", "հարսանիքներ", "հարսանիքները", "բակ", "բակը", "բակեր", "բակերը", "դուռ", "դուռը", "դուռներ", "դուռները", "հաց", "հացը", "միս", "միսը", "պանիր", "պանիրը", "կաթ", "կաթը", "մածուն", "մածունը", "կարագ", "կարագը", "իւղ", "իւղը", "ձէթ", "ձէթը", "աղ", "աղը", "պղպեղ", "պղպեղը", "շաքար", "շաքարը", "մեղր", "մեղրը", "բրինձ", "բրինձը", "ցորեն", "ցորենը", "ալիւր", "ալիւրը", "սուրճ", "սուրճը", "թէյ", "թէյը", "ջուր", "ջուրը", "գինի", "գինին", "խորոված", "խորովածը", "ոսպ", "ոսպը", "լուբիա", "լուբիան", "սիսեռ", "սիսեռը", "սխտոր", "սխտորը", "արեւ", "արեւը", "լուսին", "լուսինը", "երկինք", "երկինքը", "անձրեւ", "անձրեւը", "ձիւն", "ձիւնը", "հով", "հովը", "կայծակ", "կայծակը", "որոտ", "որոտը", "օդ", "օդը", "հող", "հողը", "աւազ", "աւազը", "խոտ", "խոտը", "արիւն", "արիւնը", "մորթ", "մորթը", "սէր", "սէրը", "յոյս", "յոյսը", "հաւատք", "հաւատքը", "կեանք", "կեանքը", "մահ", "մահը", "ազատութիւն", "ազատութիւնը", "խաղաղութիւն", "խաղաղութիւնը", "պատերազմ", "պատերազմը", "արդարութիւն", "արդարութիւնը", "ճշմարտութիւն", "ճշմարտութիւնը", "գեղեցկութիւն", "գեղեցկութիւնը", "բարութիւն", "բարութիւնը", "ուրախութիւն", "ուրախութիւնը", "տխրութիւն", "տխրութիւնը", "վախ", "վախը", "ցաւ", "ցաւը", "կարօտ", "կարօտը", "յաջողութիւն", "յաջողութիւնը", "աշխատանք", "աշխատանքը", "դրամ", "դրամը", "առեւտուր", "առեւտուրը", "ժամանակ", "ժամանակը", "ցուրտ", "ցուրտը", "տաքութիւն", "տաքութիւնը", "պատմութիւն", "պատմութիւնը", "աշխարհագրութիւն", "աշխարհագրութիւնը", "թուաբանութիւն", "թուաբանութիւնը", "երկրաչափութիւն", "երկրաչափութիւնը", "գիտութիւն", "գիտութիւնը", "ֆիզիքա", "ֆիզիքան", "քիմիա", "քիմիան", "կենսաբանութիւն", "կենսաբանութիւնը", "երաժշտութիւն", "երաժշտութիւնը", "նկարչութիւն", "նկարչութիւնը", "գրականութիւն", "գրականութիւնը", "ճարտարագիտութիւն", "ճարտարագիտութիւնը", "հայերէն", "հայերէնը", "անգլերէն", "անգլերէնը", "ֆրանսերէն", "ֆրանսերէնը", "արաբերէն", "արաբերէնը", "թրքերէն", "թրքերէնը", "աստուած", "աստուածը", "հոգի", "հոգին", "դրախտ", "դրախտը", "մեղք", "մեղքը", "շնորհ", "շնորհը", "օրհնութիւն", "օրհնութիւնը", "ծնունդ", "ծնունդը", "զատիկ", "զատիկը", "յարութիւն", "յարութիւնը", "աւետարան", "աւետարանը", "աստուածաշունչ", "աստուածաշունչը", "պատարագ", "պատարագը", "խունկ", "խունկը", "ժողովուրդ", "ժողովուրդը", "հայրենիք", "հայրենիքը", "ընկերութիւն", "ընկերութիւնը", "փառք", "փառքը", "ուժ", "ուժը", "գրել", "գրեմ", "գրես", "գրէ", "գրենք", "գրէք", "գրեն", "գրեցի", "գրեցիր", "գրեց", "գրեցինք", "գրեցիք", "գրեցին", "խմել", "խմեմ", "խմես", "խմէ", "խմենք", "խմէք", "խմեն", "խմեցի", "խմեցիր", "խմեց", "խմեցինք", "խմեցիք", "խմեցին", "ուտել", "ուտեմ", "ուտես", "ուտէ", "ուտենք", "ուտէք", "ուտեն", "սիրել", "սիրեմ", "սիրես", "սիրէ", "սիրենք", "սիրէք", "սիրեն", "սիրեցի", "սիրեցիր", "սիրեց", "սիրեցինք", "սիրեցիք", "սիրեցին", "ուզել", "ուզեմ", "ուզես", "ուզէ", "ուզենք", "ուզէք", "ուզեն", "ուզեցի", "ուզեցիր", "ուզեց", "ուզեցինք", "ուզեցիք", "ուզեցին", "ըսել", "ըսեմ", "ըսես", "ըսէ", "ըսենք", "ըսէք", "ըսեն", "ընել", "ընեմ", "ընես", "ընէ", "ընենք", "ընէք", "ընեն", "տեսնել", "տեսնեմ", "տեսնես", "տեսնէ", "տեսնենք", "տեսնէք", "տեսնեն", "լսել", "լսեմ", "լսես", "լսէ", "լսենք", "լսէք", "լսեն", "լսեցի", "լսեցիր", "լսեց", "լսեցինք", "լսեցիք", "լսեցին", "պատմել", "պատմեմ", "պատմես", "պատմէ", "պատմենք", "պատմէք", "պատմեն", "պատմեցի", "պատմեցիր", "պատմեց", "պատմեցինք", "պատմեցիք", "պատմեցին", "հարցնել", "հարցնեմ", "հարցնես", "հարցնէ", "հարցնենք", "հարցնէք", "հարցնեն", "պատասխանել", "պատասխանեմ", "պատասխանես", "պատասխանէ", "պատասխանենք", "պատասխանէք", "պատասխանեն", "պատասխանեցի", "պատասխանեցիր", "պատասխանեց", "պատասխանեցինք", "պատասխանեցիք", "պատասխանեցին", "սպասել", "սպասեմ", "սպասես", "սպասէ", "սպասենք", "սպասէք", "սպասեն", "սպասեցի", "սպասեցիր", "սպասեց", "սպասեցինք", "սպասեցիք", "սպասեցին", "մտածել", "մտածեմ", "մտածես", "մտածէ", "մտածենք", "մտածէք", "մտածեն", "մտածեցի", "մտածեցիր", "մտածեց", "մտածեցինք", "մտածեցիք", "մտածեցին", "երգել", "երգեմ", "երգես", "երգէ", "երգենք", "երգէք", "երգեն", "երգեցի", "երգեցիր", "երգեց", "երգեցինք", "երգեցիք", "երգեցին", "պարել", "պարեմ", "պարես", "պարէ", "պարենք", "պարէք", "պարեն", "պարեցի", "պարեցիր", "պարեց", "պարեցինք", "պարեցիք", "պարեցին", "դնել", "դնեմ", "դնես", "դնէ", "դնենք", "դնէք", "դնեն", "հանել", "հանեմ", "հանես", "հանէ", "հանենք", "հանէք", "հանեն", "հանեցի", "հանեցիր", "հանեց", "հանեցինք", "հանեցիք", "հանեցին", "բերել", "բերեմ", "բերես", "բերէ", "բերենք", "բերէք", "բերեն", "իջնել", "իջնեմ", "իջնես", "իջնէ", "իջնենք", "իջնէք", "իջնեն", "մտնել", "մտնեմ", "մտնես", "մտնէ", "մտնենք", "մտնէք", "մտնեն", "գտնել", "գտնեմ", "գտնես", "գտնէ", "գտնենք", "գտնէք", "գտնեն", "ծախել", "ծախեմ", "ծախես", "ծախէ", "ծախենք", "ծախէք", "ծախեն", "ծախեցի", "ծախեցիր", "ծախեց", "ծախեցինք", "ծախեցիք", "ծախեցին", "գնել", "գնեմ", "գնես", "գնէ", "գնենք", "գնէք", "գնեն", "գնեցի", "գնեցիր", "գնեց", "գնեցինք", "գնեցիք", "գնեցին", "վճարել", "վճարեմ", "վճարես", "վճարէ", "վճարենք", "վճարէք", "վճարեն", "վճարեցի", "վճարեցիր", "վճարեց", "վճարեցինք", "վճարեցիք", "վճարեցին", "օգնել", "օգնեմ", "օգնես", "օգնէ", "օգնենք", "օգնէք", "օգնեն", "օգնեցի", "օգնեցիր", "օգնեց", "օգնեցինք", "օգնեցիք", "օգնեցին", "յիշել", "յիշեմ", "յիշես", "յիշէ", "յիշենք", "յիշէք", "յիշեն", "յիշեցի", "յիշեցիր", "յիշեց", "յիշեցինք", "յիշեցիք", "յիշեցին", "եփել", "եփեմ", "եփես", "եփէ", "եփենք", "եփէք", "եփեն", "եփեցի", "եփեցիր", "եփեց", "եփեցինք", "եփեցիք", "եփեցին", "քալել", "քալեմ", "քալես", "քալէ", "քալենք", "քալէք", "քալեն", "քալեցի", "քալեցիր", "քալեց", "քալեցինք", "քալեցիք", "քալեցին", "ցատկել", "ցատկեմ", "ցատկես", "ցատկէ", "ցատկենք", "ցատկէք", "ցատկեն", "ցատկեցի", "ցատկեցիր", "ցատկեց", "ցատկեցինք", "ցատկեցիք", "ցատկեցին", "նկարել", "նկարեմ", "նկարես", "նկարէ", "նկարենք", "նկարէք", "նկարեն", "նկարեցի", "նկարեցիր", "նկարեց", "նկարեցինք", "նկարեցիք", "նկարեցին", "շինել", "շինեմ", "շինես", "շինէ", "շինենք", "շինէք", "շինեն", "շինեցի", "շինեցիր", "շինեց", "շինեցինք", "շինեցիք", "շինեցին", "կոտրել", "կոտրեմ", "կոտրես", "կոտրէ", "կոտրենք", "կոտրէք", "կոտրեն", "կոտրեցի", "կոտրեցիր", "կոտրեց", "կոտրեցինք", "կոտրեցիք", "կոտրեցին", "բռնել", "բռնեմ", "բռնես", "բռնէ", "բռնենք", "բռնէք", "բռնեն", "բռնեցի", "բռնեցիր", "բռնեց", "բռնեցինք", "բռնեցիք", "բռնեցին", "ձգել", "ձգեմ", "ձգես", "ձգէ", "ձգենք", "ձգէք", "ձգեն", "ձգեցի", "ձգեցիր", "ձգեց", "ձգեցինք", "ձգեցիք", "ձգեցին", "նետել", "նետեմ", "նետես", "նետէ", "նետենք", "նետէք", "նետեն", "նետեցի", "նետեցիր", "նետեց", "նետեցինք", "նետեցիք", "նետեցին", "բաժնել", "բաժնեմ", "բաժնես", "բաժնէ", "բաժնենք", "բաժնէք", "բաժնեն", "բաժնեցի", "բաժնեցիր", "բաժնեց", "բաժնեցինք", "բաժնեցիք", "բաժնեցին", "փակել", "փակեմ", "փակես", "փակէ", "փակենք", "փակէք", "փակեն", "փակեցի", "փակեցիր", "փակեց", "փակեցինք", "փակեցիք", "փակեցին", "փնտռել", "փնտռեմ", "փնտռես", "փնտռէ", "փնտռենք", "փնտռէք", "փնտռեն", "փնտռեցի", "փնտռեցիր", "փնտռեց", "փնտռեցինք", "փնտռեցիք", "փնտռեցին", "աղօթել", "աղօթեմ", "աղօթես", "աղօթէ", "աղօթենք", "աղօթէք", "աղօթեն", "աղօթեցի", "աղօթեցիր", "աղօթեց", "աղօթեցինք", "աղօթեցիք", "աղօթեցին", "համբուրել", "համբուրեմ", "համբուրես", "համբուրէ", "համբուրենք", "համբուրէք", "համբուրեն", "համբուրեցի", "համբուրեցիր", "համբուրեց", "համբուրեցինք", "համբուրեցիք", "համբուրեցին", "գործածել", "գործածեմ", "գործածես", "գործածէ", "գործածենք", "գործածէք", "գործածեն", "գործածեցի", "գործածեցիր", "գործածեց", "գործածեցինք", "գործածեցիք", "գործածեցին", "վազել", "վազեմ", "վազես", "վազէ", "վազենք", "վազէք", "վազեն", "վազեցի", "վազեցիր", "վազեց", "վազեցինք", "վազեցիք", "վազեցին", "ելլել", "ելլեմ", "ելլես", "ելլէ", "ելլենք", "ելլէք", "ելլեն", "լուալ", "լուամ", "լուաս", "լուայ", "լուանք", "լուաք", "լուան", "սորվեցնել", "սորվեցնեմ", "սորվեցնես", "սորվեցնէ", "սորվեցնենք", "սորվեցնէք", "սորվեցնեն", "ճամբորդել", "ճամբորդեմ", "ճամբորդես", "ճամբորդէ", "ճամբորդենք", "ճամբորդէք", "ճամբորդեն", "ճամբորդեցի", "ճամբորդեցիր", "ճամբորդեց", "ճամբորդեցինք", "ճամբորդեցիք", "ճամբորդեցին", "հրաւիրել", "հրաւիրեմ", "հրաւիրես", "հրաւիրէ", "հրաւիրենք", "հրաւիրէք", "հրաւիրեն", "հրաւիրեցի", "հրաւիրեցիր", "հրաւիրեց", "հրաւիրեցինք", "հրաւիրեցիք", "հրաւիրեցին", "ընթրել", "ընթրեմ", "ընթրես", "ընթրէ", "ընթրենք", "ընթրէք", "ընթրեն", "ընթրեցի", "ընթրեցիր", "ընթրեց", "ընթրեցինք", "ընթրեցիք", "ընթրեցին", "նախաճաշել", "նախաճաշեմ", "նախաճաշես", "նախաճաշէ", "նախաճաշենք", "նախաճաշէք", "նախաճաշեն", "նախաճաշեցի", "նախաճաշեցիր", "նախաճաշեց", "նախաճաշեցինք", "նախաճաշեցիք", "նախաճաշեցին", "ճաշել", "ճաշեմ", "ճաշես", "ճաշէ", "ճաշենք", "ճաշէք", "ճաշեն", "ճաշեցի", "ճաշեցիր", "ճաշեց", "ճաշեցինք", "ճաշեցիք", "ճաշեցին", "մաքրել", "մաքրեմ", "մաքրես", "մաքրէ", "մաքրենք", "մաքրէք", "մաքրեն", "մաքրեցի", "մաքրեցիր", "մաքրեց", "մաքրեցինք", "մաքրեցիք", "մաքրեցին", "պատրաստել", "պատրաստեմ", "պատրաստես", "պատրաստէ", "պատրաստենք", "պատրաստէք", "պատրաստեն", "պատրաստեցի", "պատրաստեցիր", "պատրաստեց", "պատրաստեցինք", "պատրաստեցիք", "պատրաստեցին", "փոխել", "փոխեմ", "փոխես", "փոխէ", "փոխենք", "փոխէք", "փոխեն", "փոխեցի", "փոխեցիր", "փոխեց", "փոխեցինք", "փոխեցիք", "փոխեցին", "որոշել", "որոշեմ", "որոշես", "որոշէ", "որոշենք", "որոշէք", "որոշեն", "որոշեցի", "որոշեցիր", "որոշեց", "որոշեցինք", "որոշեցիք", "որոշեցին", "կարդալ", "կարդամ", "կարդաս", "կարդայ", "կարդանք", "կարդաք", "կարդան", "կարդացի", "կարդացիր", "կարդաց", "կարդացինք", "կարդացիք", "կարդացին", "խաղալ", "խաղամ", "խաղաս", "խաղայ", "խաղանք", "խաղաք", "խաղան", "խաղացի", "խաղացիր", "խաղաց", "խաղացինք", "խաղացիք", "խաղացին", "խնդալ", "խնդամ", "խնդաս", "խնդայ", "խնդանք", "խնդաք", "խնդան", "խնդացի", "խնդացիր", "խնդաց", "խնդացինք", "խնդացիք", "խնդացին", "լողալ", "լողամ", "լողաս", "լողայ", "լողանք", "լողաք", "լողան", "լողացի", "լողացիր", "լողաց", "լողացինք", "լողացիք", "լողացին", "լալ", "լամ", "լաս", "լայ", "լանք", "լաք", "լան", "դառնալ", "դառնամ", "դառնաս", "դառնայ", "դառնանք", "դառնաք", "դառնան", "մոռնալ", "մոռնամ", "մոռնաս", "մոռնայ", "մոռնանք", "մոռնաք", "մոռնան", "վախնալ", "վախնամ", "վախնաս", "վախնայ", "վախնանք", "վախնաք", "վախնան", "հասկնալ", "հասկնամ", "հասկնաս", "հասկնայ", "հասկնանք", "հասկնաք", "հասկնան", "քնանալ", "քնանամ", "քնանաս", "քնանայ", "քնանանք", "քնանաք", "քնանան", "ճանչնալ", "ճանչնամ", "ճանչնաս", "ճանչնայ", "ճանչնանք", "ճանչնաք", "ճանչնան", "կենալ", "կենամ", "կենաս", "կենայ", "կենանք", "կենաք", "կենան", "երթալ", "երթամ", "երթաս", "երթայ", "երթանք", "երթաք", "երթան", "գալ", "գամ", "գաս", "գայ", "գանք", "գաք", "գան", "տալ", "տամ", "տաս", "տայ", "տանք", "տան", "մօտենալ", "մօտենամ", "մօտենաս", "մօտենայ", "մօտենանք", "մօտենաք", "մօտենան", "հեռանալ", "հեռանամ", "հեռանաս", "հեռանայ", "հեռանանք", "հեռանաք", "հեռանան", "մնալ", "մնամ", "մնաս", "մնայ", "մնանք", "մնաք", "մնան", "խօսիլ", "խօսիմ", "խօսիս", "խօսի", "խօսինք", "խօսիք", "խօսին", "խօսեցայ", "խօսեցար", "խօսեցաւ", "խօսեցանք", "խօսեցաք", "խօսեցան", "նստիլ", "նստիմ", "նստիս", "նստի", "նստինք", "նստիք", "նստին", "նստեցայ", "նստեցար", "նստեցաւ", "նստեցանք", "նստեցաք", "նստեցան", "աշխատիլ", "աշխատիմ", "աշխատիս", "աշխատի", "աշխատինք", "աշխատիք", "աշխատին", "աշխատեցայ", "աշխատեցար", "աշխատեցաւ", "աշխատեցանք", "աշխատեցաք", "աշխատեցան", "սորվիլ", "սորվիմ", "սորվիս", "սորվի", "սորվինք", "սորվիք", "սորվին", "սորվեցայ", "սորվեցար", "սորվեցաւ", "սորվեցանք", "սորվեցաք", "սորվեցան", "ժպտիլ", "ժպտիմ", "ժպտիս", "ժպտի", "ժպտինք", "ժպտիք", "ժպտին", "ժպտեցայ", "ժպտեցար", "ժպտեցաւ", "ժպտեցանք", "ժպտեցաք", "ժպտեցան", "ապրիմ", "ապրի", "ապրինք", "ապրիք", "ապրին", "ապրեցայ", "ապրեցար", "ապրեցաւ", "ապրեցանք", "ապրեցաք", "ապրեցան", "պտտիլ", "պտտիմ", "պտտիս", "պտտի", "պտտինք", "պտտիք", "պտտին", "պտտեցայ", "պտտեցար", "պտտեցաւ", "պտտեցանք", "պտտեցաք", "պտտեցան", "պառկիլ", "պառկիմ", "պառկիս", "պառկի", "պառկինք", "պառկիք", "պառկին", "պառկեցայ", "պառկեցար", "պառկեցաւ", "պառկեցանք", "պառկեցաք", "պառկեցան", "մեռնիլ", "մեռնիմ", "մեռնիս", "մեռնի", "մեռնինք", "մեռնիք", "մեռնին", "հաւնիլ", "հաւնիմ", "հաւնիս", "հաւնի", "հաւնինք", "հաւնիք", "հաւնին", "յոգնիլ", "յոգնիմ", "յոգնիս", "յոգնի", "յոգնինք", "յոգնիք", "յոգնին", "հանգչիլ", "հանգչիմ", "հանգչիս", "հանգչի", "հանգչինք", "հանգչիք", "հանգչին", "զբաղիլ", "զբաղիմ", "զբաղիս", "զբաղի", "զբաղինք", "զբաղիք", "զբաղին"];
+const UNIQUE_WORDS = [...new Set(WORDS)];
+
+/* ---------- Trigram model for pseudo-words ---------- */
+const tri = new Map(), bi = new Map();
+function inc(m, k, c) { let o = m.get(k); if (!o) m.set(k, o = new Map()); o.set(c, (o.get(c) || 0) + 1); }
+for (const w of UNIQUE_WORDS) {
+  const s = '^^' + w + '$';
+  for (let i = 2; i < s.length; i++) { inc(tri, s.slice(i - 2, i), s[i]); inc(bi, s[i - 1], s[i]); }
+}
+function pick(entries) {
+  let t = 0; for (const [, w] of entries) t += w;
+  let r = Math.random() * t;
+  for (const [c, w] of entries) { r -= w; if (r <= 0) return c; }
+  return entries[entries.length - 1][0];
+}
+function pseudoWord(allowed, focus) {
+  let best = '';
+  for (let attempt = 0; attempt < 60; attempt++) {
+    let w = '', ctx = '^^';
+    const maxLen = 3 + Math.floor(Math.random() * 5);
+    while (true) {
+      const filt = m => m ? [...m].filter(([c]) => (c === '$' ? w.length >= 2 : allowed.has(c))) : [];
+      let opts = filt(tri.get(ctx));
+      if (opts.reduce((a, [, n]) => a + n, 0) < 2) opts = opts.concat(filt(bi.get(ctx[1])));
+      if (!opts.length) opts = [...allowed].map(c => [c, 1]).concat(w.length >= 2 ? [['$', 2]] : []);
+      if (w.length >= maxLen && opts.some(([c]) => c === '$')) break;
+      if (w.length >= 9) break;
+      const c = pick(opts);
+      if (c === '$') break;
+      w += c; ctx = ctx[1] + c;
+    }
+    if (w.length >= (attempt < 40 ? 3 : 2) && (!focus || w.includes(focus))) return w;
+    if (w.length >= 2) best = w;
+  }
+  return best || (focus ? focus + [...allowed][0] : 'աննա');
+}
+
+/* ---------- State: one progress profile per layout ---------- */
+const KEY = 'steghn.v1';
+const newProfile = () => ({ unlocked: START, keys: {}, history: [] });
+const defaults = () => ({
+  settings: { target: 35, real: true, caps: false, punct: false, kb: true, labels: true, stop: true, layout: 'phonetic' },
+  profiles: {}
+});
+let state = defaults();
+try {
+  const raw = localStorage.getItem(KEY);
+  if (raw) {
+    const s = JSON.parse(raw);
+    state = { ...defaults(), ...s, settings: { ...defaults().settings, ...(s.settings || {}) }, profiles: s.profiles || {} };
+    if (!s.profiles && s.keys) { // older single-layout save
+      const id = s.layout === 'phonetic' ? 'phonetic' : 'western';
+      state.profiles[id] = { unlocked: s.unlocked || START, keys: s.keys, history: s.history || [] };
+    }
+    for (const f of ['keys', 'history', 'unlocked', 'layout']) delete state[f];
+  }
+} catch (e) { /* storage unavailable */ }
+if (!LAYOUTS[state.settings.layout]) state.settings.layout = 'phonetic';
+let prof;
+function useLayout(id) {
+  layoutId = id; state.settings.layout = id; LAYOUT = LAYOUTS[id].map;
+  prof = state.profiles[id] || (state.profiles[id] = newProfile());
+  buildCharMap();
+}
+useLayout(state.settings.layout);
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+const targetMs = () => 60000 / (state.settings.target * 5);
+const ks = ch => prof.keys[ch] || (prof.keys[ch] = { n: 0, ema: 0, err: 0, hits: 0 });
+const conf = ch => { const k = prof.keys[ch]; return k && k.n ? targetMs() / k.ema : 0; };
+const wpmOf = ms => ms ? Math.round(60000 / (ms * 5)) : 0;
+const allowedLetters = () => ORDER.slice(0, prof.unlocked);
+
+function focusLetter() {
+  const L = allowedLetters();
+  let best = null, bc = Infinity;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const k = prof.keys[L[i]];
+    const c = k && k.n >= 3 ? conf(L[i]) : -1 + i / 100;
+    if (c < bc) { bc = c; best = L[i]; }
+  }
+  return best;
+}
+function allLearned() {
+  return allowedLetters().every(ch => { const k = prof.keys[ch]; return k && k.n >= 10 && conf(ch) >= 1; });
+}
+
+/* ---------- Lesson generation ---------- */
+let lesson = null;
+const MAX_REPEAT = 2;
+function makeText() {
+  const allowed = new Set(allowedLetters());
+  const focus = focusLetter();
+  const pool = state.settings.real ? UNIQUE_WORDS.filter(w => [...w].every(c => allowed.has(c))) : [];
+  const words = [];
+  const uses = new Map();
+  const ok = w => (uses.get(w) || 0) < MAX_REPEAT && w !== words[words.length - 1];
+  const any = arr => arr[Math.floor(Math.random() * arr.length)];
+  let len = 0, guard = 0;
+  while (len < 58 && guard++ < 400) {
+    // Real words first; made-up words only when no real word is left to use
+    const avail = pool.filter(ok);
+    const availFocus = avail.filter(w => w.includes(focus));
+    let w;
+    if (availFocus.length && Math.random() < 0.7) w = any(availFocus);
+    else if (avail.length) w = any(avail);
+    else {
+      w = pseudoWord(allowed, Math.random() < 0.75 ? focus : null);
+      if (!ok(w) && guard < 300) continue;
+    }
+    uses.set(w, (uses.get(w) || 0) + 1);
+    words.push(w); len += w.length + 1;
+  }
+  const { caps, punct } = state.settings;
+  let capNext = caps;
+  const out = words.map((w, i) => {
+    let s = w;
+    if (caps && (capNext || Math.random() < 0.2)) s = s[0].toUpperCase() + s.slice(1);
+    capNext = false;
+    if (punct) {
+      if (i === words.length - 1) s += '։';
+      else { const r = Math.random(); if (r < 0.12) { s += '։'; capNext = caps; } else if (r < 0.26) s += ','; }
+    }
+    return s;
+  });
+  return out.join(' ');
+}
+
+function newLesson() {
+  const text = makeText();
+  lesson = { text, pos: 0, errs: new Set(), curBad: false, start: null, lastT: null, focus: focusLetter() };
+  renderText(); renderKb(); renderMetrics(); renderLadder();
+  $('#lessonLabel').textContent = `Lesson ${prof.history.length + 1}`;
+  $('#live').textContent = 'timing starts on your first key';
+}
+
+/* ---------- Input ---------- */
+const $ = s => document.querySelector(s);
+const sink = $('#sink');
+
+function processChar(ch, code) {
+  if (!lesson) return;
+  const expected = lesson.text[lesson.pos];
+  if (ch === ':' && expected === '։') ch = '։';
+  const now = performance.now();
+  if (lesson.start === null) lesson.start = now;
+  const lower = expected.toLowerCase();
+  const isLetter = ORDER.includes(lower);
+  if (ch === expected) {
+    if (!lesson.curBad && lesson.lastT !== null && isLetter) {
+      const dt = now - lesson.lastT;
+      if (dt < 2500) {
+        const k = ks(lower);
+        k.n++;
+        k.ema = k.n <= 5 ? (k.ema * (k.n - 1) + dt) / k.n : k.ema * 0.88 + dt * 0.12;
+      }
+    }
+    if (isLetter) ks(lower).hits++;
+    lesson.pos++; lesson.curBad = false; lesson.lastT = now;
+    flash(code || (CHAR_TO[ch] && CHAR_TO[ch].code), 'hit');
+    if (lesson.pos >= lesson.text.length) return finish();
+  } else {
+    if (!lesson.errs.has(lesson.pos)) { lesson.errs.add(lesson.pos); if (isLetter) ks(lower).err++; }
+    lesson.curBad = true; lesson.lastT = now;
+    flash(code || (CHAR_TO[ch] && CHAR_TO[ch].code), 'wrong');
+    if (!state.settings.stop) { lesson.pos++; lesson.curBad = false; if (lesson.pos >= lesson.text.length) return finish(); }
+  }
+  renderText(); renderKb(); updateLive();
+}
+
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && t !== sink && t.closest && t.closest('input, button, textarea, select') && !['Escape'].includes(e.key)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape') { e.preventDefault(); newLesson(); return; }
+  if (e.key === 'Unidentified' || e.isComposing || !e.code) return; // let the input event handle it (phones)
+  if (!lesson) return;
+  const expected = lesson.text[lesson.pos];
+  let ch = null;
+  if (e.key === expected) ch = e.key;
+  else if (e.key.length === 1 && /[Ա-֏]/.test(e.key)) ch = e.key;
+  else if (e.code === 'Space') ch = ' ';
+  else if (LAYOUT[e.code]) ch = LAYOUT[e.code][e.shiftKey ? 1 : 0];
+  else if (e.key.length === 1) ch = e.key;
+  if (ch === null) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  hideOverlay();
+  processChar(ch, e.code);
+});
+sink.addEventListener('input', () => {
+  const v = sink.value; sink.value = '';
+  for (const ch of v) processChar(ch, null);
+});
+$('#sheet').addEventListener('click', () => { sink.focus({ preventScroll: true }); hideOverlay(); });
+
+/* Pause timing when the page loses focus */
+function showOverlay() { $('#overlay').hidden = false; $('#sheet').classList.add('blurred'); if (lesson) lesson.lastT = null; }
+function hideOverlay() { $('#overlay').hidden = true; $('#sheet').classList.remove('blurred'); }
+window.addEventListener('blur', showOverlay);
+window.addEventListener('focus', hideOverlay);
+
+/* ---------- Finish ---------- */
+function finish() {
+  const elapsed = (lesson.lastT || performance.now()) - (lesson.start || 0);
+  const n = lesson.text.length;
+  const wpm = elapsed > 0 ? Math.round(((n - 1) / 5) / (elapsed / 60000)) : 0;
+  const acc = Math.round(100 * (n - lesson.errs.size) / n);
+  const prev = prof.history[prof.history.length - 1];
+  prof.history.push({ wpm, acc, at: Date.now(), letters: prof.unlocked });
+  if (prof.history.length > 500) prof.history.splice(0, prof.history.length - 500);
+  let unlockedNow = null;
+  if (prof.unlocked < ORDER.length && allLearned()) { prof.unlocked++; unlockedNow = ORDER[prof.unlocked - 1]; }
+  save();
+  const delta = prev ? wpm - prev.wpm : 0;
+  $('#result').innerHTML = `last <b>${wpm}</b> wpm · <b>${acc}</b>%` + (prev ? ` · ${delta >= 0 ? '+' : ''}${delta}` : '');
+  if (unlockedNow) announce(unlockedNow);
+  newLesson();
+  drawChart();
+}
+function announce(ch) {
+  const m = CHAR_TO[ch];
+  const toast = $('#toast');
+  toast.innerHTML = `New letter <span class="ch">${ch}</span> on the <b>${latin(m.code)}</b> key, ${FINGER_OF[m.code]}`;
+  toast.hidden = false;
+  clearTimeout(announce.t); announce.t = setTimeout(() => toast.hidden = true, 4200);
+}
+
+/* ---------- Rendering ---------- */
+function esc(c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '&' ? '&amp;' : c; }
+function renderText() {
+  const { text, pos, errs, curBad } = lesson;
+  let h = '';
+  for (let i = 0; i < text.length; i++) {
+    let cls = i < pos ? (errs.has(i) ? 'done miss' : 'done') : i === pos ? (curBad ? 'cur bad' : 'cur') : '';
+    h += `<span class="${cls}">${esc(text[i])}</span>`;
+  }
+  $('#text').innerHTML = h;
+}
+function updateLive() {
+  if (!lesson.start || lesson.pos < 2) return;
+  const el = (lesson.lastT || performance.now()) - lesson.start;
+  const w = Math.round(((lesson.pos - 1) / 5) / (el / 60000));
+  const a = Math.round(100 * (lesson.pos - [...lesson.errs].filter(i => i < lesson.pos).length) / lesson.pos);
+  $('#live').textContent = `${w} wpm · ${a}% · ${lesson.pos}/${lesson.text.length}`;
+}
+
+let selKey = null;
+function renderLadder() {
+  const L = $('#ladder');
+  const focus = lesson ? lesson.focus : focusLetter();
+  L.innerHTML = '';
+  ORDER.forEach((ch, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = ch;
+    const k = prof.keys[ch];
+    if (i >= prof.unlocked) b.classList.add('locked');
+    else {
+      if (!k || !k.n) b.classList.add('unseen');
+      const c = Math.min(1, conf(ch));
+      b.style.setProperty('--c', c.toFixed(3));
+      if (k && k.n >= 10 && conf(ch) >= 1) b.classList.add('learned');
+      if (ch === focus) b.classList.add('focus');
+    }
+    if (ch === selKey) b.classList.add('sel');
+    b.setAttribute('aria-label', `${ch}${i >= prof.unlocked ? ', locked' : ''}`);
+    b.addEventListener('click', () => { selKey = selKey === ch ? null : ch; renderLadder(); });
+    L.appendChild(b);
+  });
+  $('#unlockCount').textContent = prof.unlocked;
+  renderKeyInfo();
+}
+function renderKeyInfo() {
+  const el = $('#keyinfo');
+  const ch = selKey || (lesson ? lesson.focus : focusLetter());
+  const m = CHAR_TO[ch]; const k = prof.keys[ch];
+  const idx = ORDER.indexOf(ch);
+  const where = `${latin(m.code)} key, ${FINGER_OF[m.code]}`;
+  if (idx >= prof.unlocked) { el.innerHTML = `<b>${ch}</b> · ${where} · locked, unlocks as letter ${idx + 1}`; return; }
+  const label = selKey ? '' : 'Focus · ';
+  if (!k || !k.n) { el.innerHTML = `${label}<b>${ch}</b> · ${where} · not typed yet`; return; }
+  const acc = k.hits ? Math.round(100 * Math.max(0, k.hits - k.err) / k.hits) : 100;
+  el.innerHTML = `${label}<b>${ch}</b> · ${where} · <b style="font-family:var(--f-num);font-size:14px">${wpmOf(k.ema)}</b> wpm of ${state.settings.target} · ${acc}% accurate · typed ${k.hits}×`;
+}
+
+function renderMetrics() {
+  const h = prof.history;
+  const last = h[h.length - 1], prev = h[h.length - 2];
+  const sp = $('#mSpeed');
+  sp.textContent = last ? last.wpm : '–';
+  sp.className = last && prev ? (last.wpm > prev.wpm ? 'up' : last.wpm < prev.wpm ? 'down' : '') : '';
+  $('#mAcc').textContent = last ? last.acc : '–';
+  const l10 = h.slice(-10);
+  $('#mAvg').textContent = l10.length ? Math.round(l10.reduce((a, b) => a + b.wpm, 0) / l10.length) : '–';
+  $('#mCount').textContent = h.length;
+  $('#mFocus').textContent = lesson ? lesson.focus : focusLetter();
+}
+
+const keyEls = {};
+function buildKb() {
+  const kb = $('#kb'); kb.innerHTML = '';
+  for (const row of ROWS) {
+    const r = document.createElement('div'); r.className = 'row';
+    for (const [code, w, label] of row) {
+      const k = document.createElement('div');
+      k.className = 'k'; k.style.setProperty('--w', w || 1);
+      if (code.startsWith('Gap')) { k.style.visibility = 'hidden'; r.appendChild(k); continue; }
+      if (LAYOUT[code]) {
+        const [lo, up] = LAYOUT[code];
+        const showUp = up.toLowerCase() === lo ? '' : up;
+        k.innerHTML = `<span class="lat">${esc(latin(code))}</span>${showUp ? `<span class="up">${esc(showUp)}</span>` : ''}<span class="ch">${esc(lo)}</span>`;
+      } else {
+        k.classList.add('mod'); k.textContent = label || '';
+      }
+      if (code === 'KeyF' || code === 'KeyJ') k.classList.add('bump');
+      keyEls[code] = k; r.appendChild(k);
+    }
+    kb.appendChild(r);
+  }
+}
+function renderKb() {
+  const allowed = new Set(allowedLetters());
+  const extra = new Set(state.settings.punct ? ['։', ','] : []);
+  for (const [code, el] of Object.entries(keyEls)) {
+    el.classList.remove('next', 'shift-next');
+    if (LAYOUT[code]) {
+      const lo = LAYOUT[code][0];
+      el.classList.toggle('dim', !allowed.has(lo) && !extra.has(lo) && !extra.has(LAYOUT[code][1]));
+    }
+  }
+  const ch = lesson && lesson.text[lesson.pos];
+  const fEl = $('#finger');
+  if (!ch) { fEl.innerHTML = ''; return; }
+  const m = CHAR_TO[ch];
+  if (!m) { fEl.innerHTML = ''; return; }
+  keyEls[m.code] && keyEls[m.code].classList.add('next');
+  let shiftTxt = '';
+  if (m.shift) {
+    const left = (FINGER_OF[m.code] || '').startsWith('left');
+    const sc = left ? 'ShiftRight' : 'ShiftLeft';
+    keyEls[sc].classList.add('shift-next');
+    shiftTxt = ` + <b>${left ? 'right' : 'left'} Shift</b> (${left ? 'right' : 'left'} pinky)`;
+  }
+  fEl.innerHTML = ch === ' '
+    ? `Next: <b>Space</b>, thumb`
+    : `Next: <span class="ch">${esc(ch)}</span> <b>${esc(latin(m.code))}</b> key, ${FINGER_OF[m.code]}${shiftTxt}`;
+}
+function flash(code, cls) {
+  const el = code && keyEls[code]; if (!el) return;
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), cls === 'wrong' ? 220 : 120);
+}
+
+function drawChart() {
+  const svg = $('#chart');
+  const W = 640, H = 190, l = 36, r = 12, t = 12, b = 26;
+  const h = prof.history.slice(-60);
+  const tgt = state.settings.target;
+  if (!h.length) {
+    svg.innerHTML = `<line class="grid" x1="${l}" x2="${W - r}" y1="${H - b}" y2="${H - b}"/><text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">Finish a lesson to start your speed chart</text>`;
+    return;
+  }
+  const maxV = Math.max(tgt * 1.2, ...h.map(d => d.wpm));
+  const step = maxV > 90 ? 30 : maxV > 45 ? 20 : 10;
+  const top = Math.ceil(maxV / step) * step;
+  const x = i => l + (h.length === 1 ? (W - l - r) / 2 : i * (W - l - r) / (h.length - 1));
+  const y = v => t + (1 - v / top) * (H - t - b);
+  let s = '';
+  for (let v = 0; v <= top; v += step) s += `<line class="grid" x1="${l}" x2="${W - r}" y1="${y(v)}" y2="${y(v)}"/><text x="${l - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  s += `<line class="tgt" x1="${l}" x2="${W - r}" y1="${y(tgt)}" y2="${y(tgt)}"/><text class="tl" x="${W - r}" y="${y(tgt) - 6}" text-anchor="end">target ${tgt}</text>`;
+  const pts = h.map((d, i) => `${x(i).toFixed(1)},${y(d.wpm).toFixed(1)}`);
+  if (h.length > 1) {
+    s += `<path class="ar" d="M${x(0)},${y(0)} L${pts.join(' L')} L${x(h.length - 1)},${y(0)} Z"/>`;
+    s += `<path class="ln" d="M${pts.join(' L')}"/>`;
+  }
+  const last = h[h.length - 1];
+  s += `<circle class="dot" cx="${x(h.length - 1)}" cy="${y(last.wpm)}" r="5"/>`;
+  const first = prof.history.length - h.length + 1;
+  s += `<text x="${l}" y="${H - 6}">#${first}</text><text x="${W - r}" y="${H - 6}" text-anchor="end">#${prof.history.length}</text>`;
+  svg.innerHTML = s;
+}
+
+/* ---------- Settings UI ---------- */
+function bindSettings() {
+  const S = state.settings;
+  const tgt = $('#target'), out = $('#targetOut');
+  tgt.value = S.target; out.textContent = `${S.target} WPM`;
+  tgt.addEventListener('input', () => { S.target = +tgt.value; out.textContent = `${S.target} WPM`; save(); renderLadder(); drawChart(); });
+  const bind = (id, key, after) => {
+    const el = $(id); el.checked = !!S[key];
+    el.addEventListener('change', () => { S[key] = el.checked; save(); after && after(); });
+  };
+  bind('#optReal', 'real', newLesson);
+  bind('#optCaps', 'caps', newLesson);
+  bind('#optPunct', 'punct', newLesson);
+  bind('#optKb', 'kb', applyView);
+  bind('#optLabels', 'labels', applyView);
+  bind('#optStop', 'stop');
+  const togglePanel = (btnId, panelId, otherBtn, otherPanel) => $(btnId).addEventListener('click', () => {
+    const p = $(panelId); p.hidden = !p.hidden;
+    $(btnId).setAttribute('aria-expanded', String(!p.hidden));
+    if (!p.hidden) { $(otherPanel).hidden = true; $(otherBtn).setAttribute('aria-expanded', 'false'); }
+    $(btnId).blur();
+  });
+  togglePanel('#progBtn', '#progress', '#setBtn', '#settings');
+  togglePanel('#setBtn', '#settings', '#progBtn', '#progress');
+  $('#newBtn').addEventListener('click', () => { newLesson(); $('#newBtn').blur(); });
+  $('#unlockBtn').addEventListener('click', () => {
+    if (prof.unlocked < ORDER.length) { prof.unlocked++; save(); announce(ORDER[prof.unlocked - 1]); newLesson(); }
+  });
+  $('#lockBtn').addEventListener('click', () => {
+    if (prof.unlocked > START) { prof.unlocked--; save(); newLesson(); }
+  });
+  $('#resetZone').addEventListener('click', e => {
+    const z = $('#resetZone');
+    if (e.target.id === 'resetBtn') {
+      z.innerHTML = `<span class="hint">Erase all stats and letters?</span> <button id="resetYes" class="danger solid" type="button">Erase</button> <button id="resetNo" type="button">Cancel</button>`;
+    } else if (e.target.id === 'resetYes') {
+      state.profiles[layoutId] = newProfile(); prof = state.profiles[layoutId]; save();
+      z.innerHTML = `<button id="resetBtn" class="danger" type="button">Reset progress</button>`;
+      $('#result').textContent = ''; newLesson(); drawChart();
+    } else if (e.target.id === 'resetNo') {
+      z.innerHTML = `<button id="resetBtn" class="danger" type="button">Reset progress</button>`;
+    }
+  });
+}
+/* ---------- Backup to / from a JSON file ---------- */
+function backupObject() {
+  return { app: 'steghn', version: 1, exportedAt: new Date().toISOString(), settings: state.settings, profiles: state.profiles };
+}
+function setStatus(msg, kind) { const el = $('#dataStatus'); el.textContent = msg; el.className = 'hint' + (kind ? ' ' + kind : ''); }
+function lessonCount(profiles) { return Object.values(profiles || {}).reduce((a, p) => a + ((p && p.history) ? p.history.length : 0), 0); }
+let downloadsApi;
+const downloadsReady = (window.claude && window.claude.use ? window.claude.use('downloads') : Promise.resolve(null))
+  .then(d => (downloadsApi = d)).catch(() => (downloadsApi = null));
+function downloadFile(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+async function exportBackup() {
+  const json = JSON.stringify(backupObject(), null, 2);
+  const day = new Date().toISOString().slice(0, 10);
+  const name = `steghn-backup-${day}.json`;
+  const ta = $('#exportText');
+  const summary = `${lessonCount(state.profiles)} lessons across ${Object.keys(state.profiles).length} layout(s)`;
+  if (!(window.claude && window.claude.use)) {
+    // Normal website: download the file directly
+    try { downloadFile(name, json); ta.hidden = true; setStatus(`Downloaded ${name}: ${summary}.`, 'ok'); return; }
+    catch (e) { /* fall through to copy */ }
+  }
+  try {
+    if (downloadsApi === undefined) await downloadsReady;
+    if (downloadsApi) {
+      await downloadsApi.save({ filename: name, data: json });
+      ta.hidden = true;
+      setStatus(`Backup saved: ${summary}.`, 'ok');
+      return;
+    }
+  } catch (err) {
+    if (err && err.code === 'declined') { setStatus('Backup not saved.'); return; }
+    if (err && err.code === 'rate_limited') { setStatus('A save prompt is already open. Try again in a moment.', 'bad'); return; }
+  }
+  // No file saving here: show the JSON and copy it
+  ta.value = json; ta.hidden = false; ta.select();
+  try { await navigator.clipboard.writeText(json); setStatus('File saving isn\'t available here, so the backup was copied. Paste it into a .json file.', 'ok'); }
+  catch (e) { setStatus('File saving isn\'t available here. Copy the text below into a .json file.', 'bad'); }
+}
+function validBackup(o) {
+  return o && typeof o === 'object' && o.app === 'steghn' && o.profiles && typeof o.profiles === 'object' &&
+    Object.values(o.profiles).every(p => p && typeof p.unlocked === 'number' && p.keys && typeof p.keys === 'object' && Array.isArray(p.history));
+}
+function readBackupText(text) {
+  let o;
+  try { o = JSON.parse(text); } catch (e) { setStatus('That file isn\'t valid JSON.', 'bad'); return; }
+  if (!validBackup(o)) { setStatus('That file isn\'t a Ստեղն backup.', 'bad'); return; }
+  const box = $('#importConfirm');
+  const when = o.exportedAt ? new Date(o.exportedAt).toLocaleString() : 'an unknown date';
+  box.innerHTML = `<span>Backup from <b>${when}</b> with ${lessonCount(o.profiles)} lessons. Replace your current progress with it?</span>
+    <button id="impYes" type="button" class="danger solid">Replace</button> <button id="impNo" type="button">Cancel</button>`;
+  box.hidden = false;
+  $('#impYes').onclick = () => {
+    state.profiles = {};
+    for (const [id, p] of Object.entries(o.profiles)) if (LAYOUTS[id]) state.profiles[id] = { unlocked: Math.min(ORDER.length, Math.max(START, p.unlocked | 0)), keys: p.keys, history: p.history };
+    Object.assign(state.settings, defaults().settings, o.settings || {});
+    if (!LAYOUTS[state.settings.layout]) state.settings.layout = 'phonetic';
+    save(); box.hidden = true;
+    useLayout(state.settings.layout);
+    syncSettingsUI(); applyView(); switchLayout(layoutId);
+    setStatus('Backup loaded.', 'ok');
+  };
+  $('#impNo').onclick = () => { box.hidden = true; setStatus(''); };
+}
+function bindData() {
+  $('#exportBtn').addEventListener('click', exportBackup);
+  $('#importBtn').addEventListener('click', () => $('#importFile').click());
+  $('#importFile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => readBackupText(String(r.result));
+    r.onerror = () => setStatus('Couldn\'t read that file.', 'bad');
+    r.readAsText(f); e.target.value = '';
+  });
+}
+function syncSettingsUI() {
+  const S = state.settings;
+  $('#target').value = S.target; $('#targetOut').textContent = `${S.target} WPM`;
+  $('#optReal').checked = S.real; $('#optCaps').checked = S.caps; $('#optPunct').checked = S.punct;
+  $('#optKb').checked = S.kb; $('#optLabels').checked = S.labels; $('#optStop').checked = S.stop;
+}
+
+function applyView() {
+  $('#kbWrap').hidden = !state.settings.kb;
+  document.body.classList.toggle('no-labels', !state.settings.labels);
+}
+
+function renderLayoutUI() {
+  const seg = $('#layoutSeg'); seg.innerHTML = '';
+  const sel = document.createElement('select');
+  sel.id = 'layoutSel'; sel.setAttribute('aria-label', 'Keyboard layout');
+  for (const [id, L] of Object.entries(LAYOUTS)) {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = L.name; o.selected = id === layoutId;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change', () => { switchLayout(sel.value); sel.blur(); });
+  seg.appendChild(sel);
+  $('#layoutFull').textContent = LAYOUTS[layoutId].full;
+  $('#layoutNote').innerHTML = LAYOUTS[layoutId].note;
+  const home = ['KeyA','KeyS','KeyD','KeyF'].map(c => LAYOUT[c][0]).join(' ') + ' · ' + ['KeyJ','KeyK','KeyL','Semicolon'].map(c => LAYOUT[c][0]).filter(c => /[\u0561-\u0587]/.test(c)).join(' ');
+  $('#homeRow').textContent = home;
+}
+function switchLayout(id) {
+  useLayout(id); save();
+  selKey = null; $('#result').textContent = '';
+  buildKb(); renderLayoutUI(); newLesson(); drawChart();
+}
+
+buildKb();
+renderLayoutUI();
+bindSettings();
+bindData();
+applyView();
+newLesson();
+drawChart();
+})();
+</script>
+
+</body>
+</html>
